@@ -85,14 +85,63 @@ safeExec(`
 safeExec('DROP INDEX IF EXISTS sqlite_autoindex_categories_1');
 safeExec('DROP INDEX IF EXISTS sqlite_autoindex_categories_2');
 
-// Categories table
+// Migration: drop global UNIQUE on categories.name, enforce UNIQUE(name, project_id).
+// Old schema had `name TEXT NOT NULL UNIQUE` (table-level). The table-level UNIQUE
+// is implemented as an auto-index that SQLite refuses to drop explicitly. We avoid
+// that pitfall by NOT touching the auto-indexes — they go away when we DROP TABLE
+// the old categories table. One-shot: re-runs are skipped because the conditional
+// no longer matches.
+{
+  const categoriesSchema = db.prepare(`
+    SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'
+  `).get();
+  if (categoriesSchema && /name\s+TEXT\s+NOT\s+NULL\s+UNIQUE/i.test(categoriesSchema.sql)) {
+    console.log('Migrating categories: removing global UNIQUE on name, enforcing per-project UNIQUE');
+    db.exec(`
+      BEGIN TRANSACTION;
+
+      -- Drop our own composite index (safe). Auto-indexes backing the table-level UNIQUE
+      -- are NOT dropped here — they will be removed implicitly when we DROP TABLE categories.
+      DROP INDEX IF EXISTS idx_categories_name_project;
+
+      -- Recreate table without UNIQUE on name
+      CREATE TABLE categories_new (
+        id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        name       TEXT NOT NULL,
+        color      TEXT NOT NULL DEFAULT '#6366f1',
+        created_at TEXT DEFAULT (datetime('now')),
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        position   REAL DEFAULT 0
+      );
+
+      -- Preserve all rows. Any existing NULL project_id is backfilled to the Personal project
+      -- (ca272e5f2aa23e801b54fa09e48852a7) so the composite UNIQUE has a value for every row.
+      INSERT INTO categories_new (id, name, color, created_at, project_id, position)
+        SELECT id, name, color, created_at,
+               COALESCE(project_id, 'ca272e5f2aa23e801b54fa09e48852a7'),
+               COALESCE(position, 0)
+        FROM categories;
+
+      DROP TABLE categories;
+      ALTER TABLE categories_new RENAME TO categories;
+
+      -- Per-project unique index (the only UNIQUE on categories now)
+      CREATE UNIQUE INDEX idx_categories_name_project ON categories(name, project_id);
+
+      COMMIT;
+    `);
+  }
+}
+
+// Categories table (fresh DBs land here; existing DBs are handled by the migration above)
 safeExec(`
   CREATE TABLE IF NOT EXISTS categories (
     id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name       TEXT NOT NULL,
     color      TEXT NOT NULL DEFAULT '#6366f1',
     created_at TEXT DEFAULT (datetime('now')),
-    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    position   REAL DEFAULT 0
   )
 `);
 

@@ -33,6 +33,7 @@ logs/
 *.bak.*
 *.tmp
 *.orig
+data/*.backup-*
 
 # Codex / agent caches (defensive — should never appear in a project repo)
 codex-home/
