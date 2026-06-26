@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+client/dist/
+dist/
+
+# Runtime data (SQLite + uploads)
+data/tasks.db
+data/tasks.db-shm
+data/tasks.db-wal
+data/attachments/
+
+# Logs
+logs/
+*.log
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backups / transient
+*.bak
+*.bak.*
+*.tmp
+*.orig
+
+# Codex / agent caches (defensive — should never appear in a project repo)
+codex-home/
+.openclaw/
+.openclaw-agent.sqlite*
+models.json.bak
+
+# Belt-and-suspenders: never let parent-workspace paths leak in even if git walks up
+../.openclaw/
+../agents/
+../atreyu-*/
+../atreyu-messenger/
+../atreyu-webhook/
+../atreyu-photo/
+../extensions/
+../scripts/
+../skills/
+../docs/
+../canvas/
+../atreyu-health.log
+../atreyu-webhook/
+../atreyu-messenger/
+../context-warnings.log
+../.DS_Store
+../memory/
+../projects/ose-character-creator/
+../projects/flashcard-project/
+../projects/_template/
+../projects/atreyu-photo/
