@@ -414,3 +414,4 @@ Modal contents:
 - **v7+ candidate: per-instance branding** — for Chantelle's fork, she'd want `client-chantelle/` with her logo, palette, default columns (Sampling / Photographed / Priced / In Line Sheet / Wholesale Order / Shipped). Tracked separately.
 - **Future: calendar event → task conversion** — "right-click event in sidebar → create task from this." Not in v5, but the data is there. Easy follow-up.
 - **Future: shared backend, divergent frontend** — confirmed in 2026-06-27 session as the architecture for Chantelle's fork. No work in this v5.
+- **Backlog: subtasks** — add the ability to break a task into sub-items (checklist-style under a parent task). Parent shows progress (e.g. "3/7 done"). Open questions: do subtasks live in their own column or always inherit the parent's? Do they have their own due dates? Do they appear in the kanban independently or only inside the parent modal? Design TBD when we pick this up.
