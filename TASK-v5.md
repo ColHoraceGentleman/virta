@@ -380,6 +380,28 @@ Modal contents:
 
 ---
 
+## Common Misconceptions
+
+### "Every user has to download a JSON file"
+
+**Wrong.** The `google-credentials.json` file identifies **the Virta app** to Google, not any user. It is created **once** in the Google Cloud Console and lives wherever Virta's backend runs. When you copy Virta to Chantelle's Mac mini, you copy the same JSON file with it — she does not download a new one. Each user (you, Chantelle, anyone) connects their own Google account via the OAuth consent flow, and each gets their own tokens in their own Keychain.
+
+The three layers, with their lifetimes:
+
+| Layer | What it identifies | Lifetime | Where it lives |
+|---|---|---|---|
+| OAuth client (the JSON) | The Virta app | Until you delete the GCP project | The machine running Virta's backend |
+| Virta instance | One installation | As long as the machine runs it | One Mac mini (yours or Chantelle's) |
+| OAuth tokens | One user, one machine | Until revoked or Keychain cleared | That machine's Keychain |
+
+Setup for a new user on a new machine: copy the JSON, run Virta, user clicks Connect, authorizes with their Google account. Three steps, no Google Cloud Console visits required.
+
+### "I should share my Google login with Chantelle so she can use Virta"
+
+**No.** Each Virta instance binds to its own Google account via its own OAuth flow. Yours binds to `muckdart@gmail.com`. Hers binds to her account. Never share logins — the architecture is designed so you don't have to.
+
+---
+
 ## Definition of Done
 
 - [ ] `security find-generic-password -a google-oauth -s virta` returns the JSON token blob
