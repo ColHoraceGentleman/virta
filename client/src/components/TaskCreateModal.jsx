@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { api } from '../lib/api.js';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const PRIORITY_LABELS = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -68,7 +69,7 @@ function CategorySelect({ categories, value, onChange, darkMode }) {
   );
 }
 
-export default function TaskCreateModal({ columns, categories, defaultColumnId, onClose, onCreate, darkMode }) {
+export default function TaskCreateModal({ columns, categories, defaultColumnId, defaultAddToCalendar, onClose, onCreate, darkMode }) {
   const [title, setTitle]             = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate]         = useState('');
@@ -76,7 +77,27 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
   const [columnId, setColumnId]       = useState(defaultColumnId || columns?.[0]?.id || '');
   const [assignees, setAssignees]     = useState('');
   const [categoryId, setCategoryId]   = useState('');
+  const [addToCalendar, setAddToCalendar] = useState(!!defaultAddToCalendar);
+  const [calendarId, setCalendarId]   = useState('');
+  const [calendars, setCalendars]     = useState([]);
+  const [calAuthConnected, setCalAuthConnected] = useState(null);
   const [saving, setSaving]           = useState(false);
+
+  // Check auth + load calendars once on mount, if user might want the checkbox
+  useEffect(() => {
+    api.googleAuthStatus()
+      .then(s => {
+        setCalAuthConnected(!!s.connected);
+        if (s.connected) return api.listCalendars();
+        return [];
+      })
+      .then(cals => {
+        setCalendars(cals);
+        const primary = cals.find(c => c.primary) || cals[0];
+        if (primary) setCalendarId(primary.id);
+      })
+      .catch(() => setCalAuthConnected(false));
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -90,7 +111,9 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
         dueDate: dueDate || null,
         priority,
         assignees: assignees.split(',').map(a => a.trim()).filter(Boolean),
-        categoryId: categoryId || null
+        categoryId: categoryId || null,
+        addToCalendar: addToCalendar && !!calendarId,
+        calendarId: addToCalendar ? calendarId : null
       });
       onClose();
     } catch (err) {
@@ -180,6 +203,36 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
               className={`w-full border rounded-lg px-3 py-2 focus:outline-none ${inputClass}`} />
             <p className={`text-xs mt-1 ${hintColor}`}>Separate names with commas</p>
           </div>
+
+          {/* Add to Calendar */}
+          {calAuthConnected === true && (
+            <div className={`rounded-lg border px-3 py-2.5 ${darkMode ? 'border-slate-600 bg-slate-700/30' : 'border-slate-200 bg-slate-50'}`}>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={addToCalendar}
+                  onChange={e => setAddToCalendar(e.target.checked)}
+                  className="mt-0.5 rounded"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className={`text-xs font-medium ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                    📅 Add to Calendar
+                  </span>
+                  {addToCalendar && calendars.length > 0 && (
+                    <select
+                      value={calendarId}
+                      onChange={e => setCalendarId(e.target.value)}
+                      className={`mt-1.5 w-full border rounded px-2 py-1 text-xs focus:outline-none ${darkMode ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border-slate-300 text-slate-700'}`}
+                    >
+                      {calendars.map(c => (
+                        <option key={c.id} value={c.id}>{c.primary ? '★ ' : ''}{c.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </label>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}

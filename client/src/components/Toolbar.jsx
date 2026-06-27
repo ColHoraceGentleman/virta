@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-export default function Toolbar({ view, onViewChange, projects, currentProject, onProjectChange, onNewTask, onOpenCommandPalette, onOpenSettings, onToggleFilters, filterCount, darkMode, onToggleDarkMode, onNewProject }) {
+export default function Toolbar({ view, onViewChange, projects, currentProject, onProjectChange, onNewTask, onOpenCommandPalette, onOpenSettings, onToggleFilters, filterCount, darkMode, onToggleDarkMode, onNewProject, calendarOpen, onToggleCalendar }) {
   const [projectOpen, setProjectOpen] = useState(false);
   const projectRef = useRef(null);
 
@@ -68,6 +68,19 @@ export default function Toolbar({ view, onViewChange, projects, currentProject, 
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {darkMode ? '☀️' : '🌙'}
+        </button>
+
+        {/* Calendar toggle */}
+        <button
+          onClick={onToggleCalendar}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+            calendarOpen
+              ? 'bg-indigo-600 text-white'
+              : darkMode ? 'text-slate-400 hover:text-slate-200 bg-slate-700/50 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200'
+          }`}
+          title={calendarOpen ? 'Close calendar' : 'Open calendar'}
+        >
+          📅
         </button>
 
         {/* Settings button */}

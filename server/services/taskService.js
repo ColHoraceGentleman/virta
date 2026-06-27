@@ -8,14 +8,21 @@ export function getProjectById(id) {
   return db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
 }
 
-export function createProject({ name, description, color, darkMode }) {
+export function createProject({ name, description, color, darkMode, defaultAddToCalendar }) {
   const id = generateId();
   const DEFAULT_COLUMNS = ['Backlog', 'Prioritized', 'Active', 'On Hold', 'Completed'];
 
   const createProjectTx = db.transaction(() => {
     db.prepare(
-      'INSERT INTO projects (id, name, description, color, dark_mode) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, name, description || null, color || '#6366f1', darkMode !== undefined ? (darkMode ? 1 : 0) : 1);
+      'INSERT INTO projects (id, name, description, color, dark_mode, default_add_to_calendar) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(
+      id,
+      name,
+      description || null,
+      color || '#6366f1',
+      darkMode !== undefined ? (darkMode ? 1 : 0) : 1,
+      defaultAddToCalendar ? 1 : 0
+    );
     DEFAULT_COLUMNS.forEach((colName, index) => {
       createColumn(id, { name: colName, position: index });
     });
@@ -25,7 +32,7 @@ export function createProject({ name, description, color, darkMode }) {
   return getProjectById(id);
 }
 
-export function updateProject(id, { name, description, color, darkMode, position }) {
+export function updateProject(id, { name, description, color, darkMode, position, defaultAddToCalendar }) {
   const current = getProjectById(id);
   if (!current) return null;
 
@@ -46,6 +53,15 @@ export function updateProject(id, { name, description, color, darkMode, position
   }
 
   db.prepare(sql).run(...params);
+
+  // default_add_to_calendar is independent of the legacy fields above — write it separately
+  // if it was supplied. Keeps the dynamic-SQL builder simple.
+  if (defaultAddToCalendar !== undefined) {
+    db.prepare(
+      "UPDATE projects SET default_add_to_calendar = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(defaultAddToCalendar ? 1 : 0, id);
+  }
+
   return getProjectById(id);
 }
 

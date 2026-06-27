@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api.js';
+import AddToCalendarModal from './AddToCalendarModal.jsx';
 
 const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 const PRIORITY_LABELS = { low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent' };
@@ -59,6 +60,10 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading]   = useState(false);
   const [saving, setSaving]         = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState([]);
+  const [calAuthConnected, setCalAuthConnected] = useState(null); // null=loading
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [calPopoverOpen, setCalPopoverOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -70,6 +75,8 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
     setCategoryId(task.category_id || '');
     loadNotes();
     loadAttachments();
+    loadCalendarEvents();
+    loadCalAuth();
   }, [task.id]);
 
   async function loadNotes() {
@@ -77,6 +84,17 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
   }
   async function loadAttachments() {
     try { setAttachments(await api.getAttachments(task.id)); } catch {}
+  }
+  async function loadCalendarEvents() {
+    try { setCalendarEvents(await api.getTaskCalendarEvents(task.id)); } catch {}
+  }
+  async function loadCalAuth() {
+    try {
+      const s = await api.googleAuthStatus();
+      setCalAuthConnected(!!s.connected);
+    } catch {
+      setCalAuthConnected(false);
+    }
   }
   async function handleSave(fields) {
     setSaving(true);
@@ -211,6 +229,78 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
               onChange={vals => { setAssignees(vals); handleSave({ assignees: vals }); }} />
           </div>
 
+          {/* Calendar */}
+          <div>
+            <label className={`block text-xs mb-1.5 uppercase tracking-wide font-medium ${labelColor}`}>Calendar</label>
+            <div className="flex items-center gap-2">
+              {calAuthConnected === false && (
+                <button
+                  type="button"
+                  disabled
+                  className={`flex-1 text-xs border rounded-lg px-3 py-2 cursor-not-allowed ${darkMode ? 'border-slate-700 text-slate-500' : 'border-slate-200 text-slate-400'}`}
+                  title="Connect Google Calendar in Settings"
+                >
+                  🔒 Connect Google Calendar in Settings
+                </button>
+              )}
+              {calAuthConnected === null && (
+                <span className={`flex-1 text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Loading…</span>
+              )}
+              {calAuthConnected === true && calendarEvents.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className={`flex-1 text-xs border rounded-lg px-3 py-2 text-left transition-colors ${darkMode ? 'border-slate-600 text-slate-300 hover:bg-slate-700/40' : 'border-slate-300 text-slate-600 hover:bg-slate-100'}`}
+                >
+                  📅 Add to Calendar
+                </button>
+              )}
+              {calAuthConnected === true && calendarEvents.length > 0 && (
+                <div className="relative flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setCalPopoverOpen(v => !v)}
+                    className={`w-full text-xs border rounded-lg px-3 py-2 text-left flex items-center justify-between transition-colors ${darkMode ? 'border-emerald-700 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-900/40' : 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                  >
+                    <span>✓ On Calendar</span>
+                    <span className="text-xs">▾</span>
+                  </button>
+                  {calPopoverOpen && (
+                    <div
+                      className={`absolute left-0 top-full mt-1 w-full rounded-lg shadow-xl border z-20 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-slate-200'}`}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <a
+                        href={`https://calendar.google.com/calendar/r/eventedit/${calendarEvents[0].google_event_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`block px-3 py-2 text-xs transition-colors ${darkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-slate-50 text-slate-700'}`}
+                      >
+                        Open in Google Calendar ↗
+                      </a>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const ev = calendarEvents[0];
+                            await api.deleteCalendarEvent(ev.calendar_id, ev.google_event_id);
+                            setCalendarEvents([]);
+                            setCalPopoverOpen(false);
+                          } catch (err) {
+                            console.error('Failed to remove from calendar:', err);
+                          }
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs text-red-400 transition-colors ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-50'}`}
+                      >
+                        Remove from Calendar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Attachments */}
           <div>
             <label className={`block text-xs mb-1.5 uppercase tracking-wide font-medium ${labelColor}`}>Attachments</label>
@@ -269,6 +359,18 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
           </button>
         </div>
       </div>
+
+      {showAddModal && (
+        <AddToCalendarModal
+          darkMode={darkMode}
+          task={task}
+          onClose={() => setShowAddModal(false)}
+          onAdded={async () => {
+            setShowAddModal(false);
+            await loadCalendarEvents();
+          }}
+        />
+      )}
     </div>
   );
 }

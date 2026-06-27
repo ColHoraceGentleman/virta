@@ -58,5 +58,21 @@ export const api = {
   downloadAttachment: (id) => `/api/v1/attachments/${id}/download`,  // returns URL string
 
   // Auth (stubs)
-  getAuthStatus: () => request('GET', '/auth/status')
+  getAuthStatus: () => request('GET', '/auth/status'),
+
+  // Google Calendar (calendar router is mounted at /api/v1 in server/index.js)
+  googleAuthStatus: () => request('GET', '/auth/status'),
+  googleConnectUrl: () => `${BASE}/auth/google`,
+  googleDisconnect: () => request('DELETE', '/auth/google'),
+  listCalendars: () => request('GET', '/calendars'),
+  listAllEvents: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request('GET', `/calendar/events${qs ? '?' + qs : ''}`);
+  },
+  createCalendarEvent: (calendarId, data) => {
+    // Calendar IDs can contain @, so encode once for the URL and let server decode once.
+    return request('POST', `/calendars/${encodeURIComponent(calendarId)}/events`, data);
+  },
+  deleteCalendarEvent: (calendarId, eventId) => request('DELETE', `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`),
+  getTaskCalendarEvents: (taskId) => request('GET', `/tasks/${taskId}/calendar-events`)
 };

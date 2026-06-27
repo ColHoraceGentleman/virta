@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CATEGORY_COLORS } from '../lib/colors.js';
+import { api } from '../lib/api.js';
 
 const DEFAULT_PROJECT_KEY = 'virta-default-project';
 
@@ -278,6 +279,59 @@ export default function SettingsModal({
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0].hex);
 
+  // Google Calendar section
+  const [calAuthStatus, setCalAuthStatus] = useState(null); // null=loading, {connected, credentialsFile}
+  const [calDisconnecting, setCalDisconnecting] = useState(false);
+  const [calFilter, setCalFilter] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('calendar-filter') || 'null'); } catch { return null; }
+  });
+  const [calList, setCalList] = useState([]);
+
+  // Load calendar auth status + calendar list on mount (and after connect/disconnect)
+  async function loadCalStatus() {
+    try {
+      const s = await api.googleAuthStatus();
+      setCalAuthStatus(s);
+      if (s.connected) {
+        const cals = await api.listCalendars();
+        setCalList(cals);
+      } else {
+        setCalList([]);
+      }
+    } catch (err) {
+      setCalAuthStatus({ credentialsFile: false, connected: false });
+    }
+  }
+  useEffect(() => { loadCalStatus(); }, []);
+
+  function toggleCalendarFilter(calId) {
+    setCalFilter(prev => {
+      // null = show all. Toggling off a calendar means we now have an explicit allow-list.
+      const current = prev === null ? calList.map(c => c.id) : prev;
+      const next = current.includes(calId)
+        ? current.filter(id => id !== calId)
+        : [...current, calId];
+      const toStore = next.length === calList.length ? null : next;
+      localStorage.setItem('calendar-filter', JSON.stringify(toStore));
+      return toStore;
+    });
+  }
+
+  async function handleDisconnect() {
+    setCalDisconnecting(true);
+    try {
+      await api.googleDisconnect();
+      localStorage.removeItem('calendar-filter');
+      setCalFilter(null);
+      setCalList([]);
+      await loadCalStatus();
+    } catch (err) {
+      console.error('Failed to disconnect:', err);
+    } finally {
+      setCalDisconnecting(false);
+    }
+  }
+
   // Sort helpers
   const sortedProjects = [...(projects || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   const sortedColumns  = [...(columns || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -428,6 +482,97 @@ export default function SettingsModal({
           </section>
 
           {/* Divider */}
+
+          {/* ── GLOBAL → Google Calendar ── */}
+          <section>
+            <h3 className={`text-xs uppercase tracking-wide font-medium mb-3 ${subLabelCls}`}>Google Calendar</h3>
+
+            {calAuthStatus === null && (
+              <p className={`text-xs ${subLabelCls}`}>Loading…</p>
+            )}
+
+            {calAuthStatus && !calAuthStatus.credentialsFile && (
+              <p className="text-xs text-red-400">
+                google-credentials.json is missing from the project root. Add it to enable calendar integration.
+              </p>
+            )}
+
+            {calAuthStatus?.credentialsFile && !calAuthStatus.connected && (
+              <div className="space-y-2">
+                <p className={`text-xs ${subLabelCls}`}>
+                  Connect your Google account to see calendar events in the sidebar.
+                </p>
+                <a
+                  href={api.googleConnectUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                >
+                  Connect Google Calendar
+                </a>
+              </div>
+            )}
+
+            {calAuthStatus?.connected && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-emerald-400">✓ Connected</p>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    disabled={calDisconnecting}
+                    className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                  >
+                    {calDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+                  </button>
+                </div>
+
+                {calList.length > 0 && (
+                  <div>
+                    <p className={`text-xs uppercase tracking-wider font-medium mb-2 ${subLabelCls}`}>
+                      Calendars shown
+                    </p>
+                    <div className="space-y-1">
+                      {calList.map(cal => {
+                        const checked = calFilter === null || calFilter.includes(cal.id);
+                        return (
+                          <label
+                            key={cal.id}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-slate-100'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCalendarFilter(cal.id)}
+                              className="rounded"
+                            />
+                            <div
+                              className="w-2 h-6 rounded-sm flex-shrink-0"
+                              style={{ backgroundColor: cal.color || '#6366f1' }}
+                            />
+                            <span className={`text-xs ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                              {cal.primary ? '★ ' : ''}{cal.name}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {calFilter !== null && (
+                      <button
+                        type="button"
+                        onClick={() => { setCalFilter(null); localStorage.removeItem('calendar-filter'); }}
+                        className={`mt-2 text-xs ${subLabelCls} hover:underline`}
+                      >
+                        Show all calendars
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Divider */}
           <div className={`border-t ${borderCls}`} />
 
           {/* ── CURRENT PROJECT ── */}
@@ -437,6 +582,24 @@ export default function SettingsModal({
                 <p className={`text-xs uppercase tracking-widest font-bold mb-4 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
                   CURRENT PROJECT: {currentProject.name}
                 </p>
+
+                {/* Calendar default toggle */}
+                <label className={`flex items-start gap-2 px-3 py-2 mb-4 rounded-lg cursor-pointer transition-colors ${darkMode ? 'bg-slate-700/40 hover:bg-slate-700/60' : 'bg-slate-100 hover:bg-slate-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!currentProject.default_add_to_calendar}
+                    onChange={e => onUpdateProject(currentProject.id, { defaultAddToCalendar: e.target.checked })}
+                    className="mt-0.5 rounded"
+                  />
+                  <div>
+                    <p className={`text-xs font-medium ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                      Default "Add to Calendar" for new tasks
+                    </p>
+                    <p className={`text-xs mt-0.5 ${subLabelCls}`}>
+                      When creating a task in this project, the "Add to Calendar" option is pre-checked.
+                    </p>
+                  </div>
+                </label>
 
                 {/* Columns sub-section */}
                 <div className={sectionBg}>

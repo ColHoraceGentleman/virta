@@ -10,6 +10,7 @@ import TaskCreateModal from './components/TaskCreateModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import FilterBar, { applyFilters, loadFilters } from './components/FilterBar.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
+import CalendarSidebar from './components/CalendarSidebar.jsx';
 
 const VIEWS = { BOARD: 'board', LIST: 'list' };
 
@@ -22,6 +23,17 @@ export default function App() {
   const [showFilterBar, setShowFilterBar] = useState(false);
   const [createModalColumnId, setCreateModalColumnId] = useState(null);
   const [filters, setFilters] = useState(() => loadFilters());
+  const [calendarOpen, setCalendarOpen] = useState(
+    () => localStorage.getItem('calendar-sidebar-open') !== 'false'
+  );
+
+  function toggleCalendar() {
+    setCalendarOpen(v => {
+      const next = !v;
+      localStorage.setItem('calendar-sidebar-open', String(next));
+      return next;
+    });
+  }
 
   const {
     projects, currentProject, tasks, categories, loading, error,
@@ -257,6 +269,8 @@ export default function App() {
         darkMode={dm}
         onToggleDarkMode={() => setDarkMode(!darkMode)}
         onNewProject={handleNewProject}
+        calendarOpen={calendarOpen}
+        onToggleCalendar={toggleCalendar}
       />
 
       {showFilterBar && (
@@ -268,35 +282,43 @@ export default function App() {
         />
       )}
 
-      <main className="flex-1 overflow-hidden p-4">
-        {view === VIEWS.BOARD ? (
-          <KanbanBoard
-            project={currentProject}
-            onTaskClick={handleTaskClick}
-            onAddTask={handleAddTask}
-            onMoveTask={handleMoveTask}
-            onUpdateColumn={handleUpdateColumn}
-            onOpenCreateModal={handleOpenCreateModal}
-            categories={categories}
-            filteredTasks={filteredTasksByColumn}
-            darkMode={dm}
-          />
-        ) : (
-          <TaskList
-            project={currentProject}
-            onTaskClick={handleTaskClick}
-            onStatusChange={(taskId, columnId) => {
-              const col = currentProject?.columns?.find(c => c.id === columnId);
-              if (col) handleMoveTask(taskId, columnId, col.tasks?.length || 0);
-            }}
-            filteredTasks={applyFilters(
-              currentProject?.columns?.flatMap(c => c.tasks || []) || [],
-              filters
-            )}
-            darkMode={dm}
-          />
-        )}
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden p-4">
+          {view === VIEWS.BOARD ? (
+            <KanbanBoard
+              project={currentProject}
+              onTaskClick={handleTaskClick}
+              onAddTask={handleAddTask}
+              onMoveTask={handleMoveTask}
+              onUpdateColumn={handleUpdateColumn}
+              onOpenCreateModal={handleOpenCreateModal}
+              categories={categories}
+              filteredTasks={filteredTasksByColumn}
+              darkMode={dm}
+            />
+          ) : (
+            <TaskList
+              project={currentProject}
+              onTaskClick={handleTaskClick}
+              onStatusChange={(taskId, columnId) => {
+                const col = currentProject?.columns?.find(c => c.id === columnId);
+                if (col) handleMoveTask(taskId, columnId, col.tasks?.length || 0);
+              }}
+              filteredTasks={applyFilters(
+                currentProject?.columns?.flatMap(c => c.tasks || []) || [],
+                filters
+              )}
+              darkMode={dm}
+            />
+          )}
+        </main>
+
+        <CalendarSidebar
+          open={calendarOpen}
+          onToggle={toggleCalendar}
+          darkMode={dm}
+        />
+      </div>
 
       {selectedTask && (
         <TaskModal
@@ -317,6 +339,7 @@ export default function App() {
           columns={columns}
           categories={categories}
           defaultColumnId={createModalColumnId}
+          defaultAddToCalendar={!!currentProject?.default_add_to_calendar}
           onClose={() => setShowCreateModal(false)}
           darkMode={dm}
           onCreate={async (fields) => {
@@ -330,7 +353,9 @@ export default function App() {
                 dueDate: fields.dueDate,
                 priority: fields.priority,
                 assignees: fields.assignees,
-                categoryId: fields.categoryId
+                categoryId: fields.categoryId,
+                addToCalendar: fields.addToCalendar || false,
+                calendarId: fields.calendarId || null
               });
             } catch (err) {
               console.error('Failed to create task:', err);
