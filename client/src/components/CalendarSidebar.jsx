@@ -5,8 +5,11 @@ import { api } from '../lib/api.js';
 
 function startOfWeek(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sun
-  d.setDate(d.getDate() - day);
+  // ISO 8601 week starts on Monday. getDay(): 0=Sun, 1=Mon, ..., 6=Sat.
+  // We want Monday=0, so subtract (day === 0 ? 6 : day - 1) days.
+  const day = d.getDay();
+  const offset = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - offset);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -45,7 +48,7 @@ function formatTimeRange(start, end, allDay) {
   return `${sf} – ${ef}`;
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function formatWeekRange(weekStart) {
