@@ -15,9 +15,12 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CREDENTIALS_PATH = join(__dirname, '..', '..', 'google-credentials.json');
 
+// Use the broad `calendar` scope only — it covers both calendarList (listing
+// calendars) AND events operations (create/read/update/delete). The
+// `calendar.events` scope is a strict subset of `calendar`, so requesting
+// both is redundant and was confusing the OAuth grant logic.
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/calendar.events'
+  'https://www.googleapis.com/auth/calendar'
 ];
 
 const router = Router();
