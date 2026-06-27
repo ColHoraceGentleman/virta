@@ -3,13 +3,11 @@ import { api } from '../lib/api.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function startOfWeek(date) {
+// View shape: today + 6 forward days. This is an "agenda" view — every day
+// you open it, you see what's coming up, never old stuff. Paging forward with
+// the ▶ arrow advances by one week; ◀ goes back. "Today" jumps back to today.
+function startOfView(date) {
   const d = new Date(date);
-  // ISO 8601 week starts on Monday. getDay(): 0=Sun, 1=Mon, ..., 6=Sat.
-  // We want Monday=0, so subtract (day === 0 ? 6 : day - 1) days.
-  const day = d.getDay();
-  const offset = day === 0 ? 6 : day - 1;
-  d.setDate(d.getDate() - offset);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -28,8 +26,8 @@ function isSameDay(a, b) {
   );
 }
 
-function isoWeekKey(date) {
-  return startOfWeek(date).toISOString().split('T')[0];
+function viewKey(date) {
+  return startOfView(date).toISOString().split('T')[0];
 }
 
 function formatTime(dateStr, allDay) {
@@ -48,18 +46,18 @@ function formatTimeRange(start, end, allDay) {
   return `${sf} – ${ef}`;
 }
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// JavaScript getDay(): 0=Sun, 1=Mon, ..., 6=Sat. We display Mon first.
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function formatWeekRange(weekStart) {
-  const weekEnd = addDays(weekStart, 6);
-  const sm = MONTH_NAMES[weekStart.getMonth()];
-  const em = MONTH_NAMES[weekEnd.getMonth()];
-  const sy = weekStart.getFullYear();
-  const ey = weekEnd.getFullYear();
-  if (sy !== ey) return `${sm} ${weekStart.getDate()}, ${sy} – ${em} ${weekEnd.getDate()}, ${ey}`;
-  if (sm !== em) return `${sm} ${weekStart.getDate()} – ${em} ${weekEnd.getDate()}, ${sy}`;
-  return `${sm} ${weekStart.getDate()} – ${weekEnd.getDate()}, ${sy}`;
+function formatRange(start, end) {
+  const sm = MONTH_NAMES[start.getMonth()];
+  const em = MONTH_NAMES[end.getMonth()];
+  const sy = start.getFullYear();
+  const ey = end.getFullYear();
+  if (sy !== ey) return `${sm} ${start.getDate()}, ${sy} – ${em} ${end.getDate()}, ${ey}`;
+  if (sm !== em) return `${sm} ${start.getDate()} – ${em} ${end.getDate()}, ${sy}`;
+  return `${sm} ${start.getDate()} – ${end.getDate()}, ${sy}`;
 }
 
 // ── Skeleton shimmer ─────────────────────────────────────────────────────────
@@ -200,7 +198,7 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [viewStart, setViewStart] = useState(() => startOfView(new Date()));
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -208,8 +206,8 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
   const [credsMissing, setCredsMissing] = useState(false);
   const pollRef = useRef(null);
 
-  const weekKey = isoWeekKey(weekStart);
-  const weekEnd = addDays(weekStart, 7);
+  const viewKeyStr = viewKey(viewStart);
+  const viewEnd = addDays(viewStart, 7);
 
   // ── Fetch auth status ──
   const checkAuth = useCallback(async () => {
@@ -224,9 +222,9 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
     }
   }, []);
 
-  // ── Fetch events for current week ──
+  // ── Fetch events for current 7-day window (today + 6 forward) ──
   const fetchEvents = useCallback(async (wStart, wEnd, force = false) => {
-    const key = isoWeekKey(wStart);
+    const key = viewKey(wStart);
     if (!force && CACHE[key]) {
       setEvents(CACHE[key]);
       return;
@@ -256,15 +254,15 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
   useEffect(() => {
     if (!open) return;
     checkAuth().then(isConnected => {
-      if (isConnected) fetchEvents(weekStart, weekEnd);
+      if (isConnected) fetchEvents(viewStart, viewEnd);
     });
   }, [open]); // eslint-disable-line
 
   // ── Reload when week changes (and we're connected) ──
   useEffect(() => {
     if (!open || connected !== true) return;
-    fetchEvents(weekStart, weekEnd);
-  }, [weekKey]); // eslint-disable-line
+    fetchEvents(viewStart, viewEnd);
+  }, [viewKeyStr]); // eslint-disable-line
 
   // ── Handle postMessage from OAuth callback tab ──
   useEffect(() => {
@@ -273,12 +271,12 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
         setConnected(true);
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
         // Small delay then load events
-        setTimeout(() => fetchEvents(weekStart, weekEnd, true), 500);
+        setTimeout(() => fetchEvents(viewStart, viewEnd, true), 500);
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [weekStart, weekEnd, fetchEvents]);
+  }, [viewStart, viewEnd, fetchEvents]);
 
   // ── OAuth connect ──
   const handleConnect = useCallback(() => {
@@ -290,30 +288,26 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
       if (isConnected) {
         clearInterval(pollRef.current);
         pollRef.current = null;
-        fetchEvents(weekStart, weekEnd, true);
+        fetchEvents(viewStart, viewEnd, true);
       }
     }, 3000);
     // Stop polling after 5 min regardless
     setTimeout(() => {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     }, 300000);
-  }, [checkAuth, fetchEvents, weekStart, weekEnd]);
+  }, [checkAuth, fetchEvents, viewStart, viewEnd]);
 
   // ── Cleanup poll on unmount ──
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   // ── Navigation ──
-  const goNext = () => setWeekStart(w => addDays(w, 7));
-  const goPrev = () => setWeekStart(w => addDays(w, -7));
-  const goToday = () => setWeekStart(startOfWeek(new Date()));
-  const isCurrentWeek = isoWeekKey(weekStart) === isoWeekKey(new Date());
+  const goNext = () => setViewStart(v => addDays(v, 7));
+  const goPrev = () => setViewStart(v => addDays(v, -7));
+  const goToday = () => setViewStart(startOfView(new Date()));
+  const isCurrentView = viewKeyStr === viewKey(new Date());
 
-  // ── Build 7-day structure, today pinned to top ──
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const todayIndex = days.findIndex(d => isSameDay(d, today));
-  const sortedDays = todayIndex > 0
-    ? [days[todayIndex], ...days.slice(0, todayIndex), ...days.slice(todayIndex + 1)]
-    : days;
+  // ── Build 7-day structure, today pinned to top (which it always is now) ──
+  const days = Array.from({ length: 7 }, (_, i) => addDays(viewStart, i));
 
   function eventsForDay(day) {
     return events.filter(ev => {
@@ -352,11 +346,11 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
         <div className="flex items-center gap-1">
           <button onClick={goPrev} className={`p-1 rounded ${muted} ${btnHov}`} title="Previous week">◀</button>
           <button onClick={goNext} className={`p-1 rounded ${muted} ${btnHov}`} title="Next week">▶</button>
-          {!isCurrentWeek && (
+          {!isCurrentView && (
             <button onClick={goToday} className={`ml-1 px-2 py-0.5 rounded text-xs ${muted} ${btnHov}`}>Today</button>
           )}
         </div>
-        <span className={`text-xs font-medium ${muted} truncate mx-2`}>{formatWeekRange(weekStart)}</span>
+        <span className={`text-xs font-medium ${muted} truncate mx-2`}>{formatRange(viewStart, addDays(viewStart, 6))}</span>
         <div className="flex items-center gap-1">
           <button
             onClick={() => { if (connected) fetchEvents(weekStart, weekEnd, true); }}
@@ -396,7 +390,7 @@ export default function CalendarSidebar({ open, onToggle, darkMode }) {
 
         {connected === true && !loading && !error && (
           <div>
-            {sortedDays.map(day => (
+            {days.map(day => (
               <DaySection
                 key={day.toDateString()}
                 date={day}
