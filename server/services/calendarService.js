@@ -13,17 +13,31 @@ import { readTokens, storeTokens } from './keychain.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CREDENTIALS_PATH = join(__dirname, '..', '..', 'google-credentials.json');
-const REDIRECT_URI = 'http://localhost:3001/api/v1/auth/google/callback';
 
-export function getOAuthClient() {
+// REDIRECT_URI is set per-request based on the incoming Host header so that the
+// OAuth flow works whether the user reached Virta via localhost (dev) or the
+// Cloudflare tunnel (production). The matching URIs must be registered with the
+// Google OAuth client — see google-credentials.json → redirect_uris.
+//
+// The passed req is the Express request. If omitted, falls back to localhost
+// (useful for tests / scripts that don't have a request context).
+export function getOAuthClient(req) {
   if (!existsSync(CREDENTIALS_PATH)) return null;
   const creds = JSON.parse(readFileSync(CREDENTIALS_PATH, 'utf8'));
   const { client_id, client_secret } = creds.web || creds.installed;
-  return new google.auth.OAuth2(client_id, client_secret, REDIRECT_URI);
+
+  let redirectUri = 'http://localhost:3001/api/v1/auth/google/callback';
+  if (req) {
+    const host = req.headers.host || 'localhost:3001';
+    const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https');
+    redirectUri = `${proto}://${host}/api/v1/auth/google/callback`;
+  }
+
+  return new google.auth.OAuth2(client_id, client_secret, redirectUri);
 }
 
-export function getAuthenticatedClient() {
-  const oauth2Client = getOAuthClient();
+export function getAuthenticatedClient(req) {
+  const oauth2Client = getOAuthClient(req);
   if (!oauth2Client) return null;
 
   const tokens = readTokens();
@@ -64,8 +78,8 @@ export function getAuthenticatedClient() {
  * @param {string} [opts.taskId]          - Virta task ID to link the event to
  * @returns {Promise<{googleEventId, htmlLink, title, start}>}
  */
-export async function createCalendarEvent({ calendarId, title, description, startDateTime, endDateTime, allDay, taskId }) {
-  const auth = getAuthenticatedClient();
+export async function createCalendarEvent({ calendarId, title, description, startDateTime, endDateTime, allDay, taskId }, req) {
+  const auth = getAuthenticatedClient(req);
   if (!auth) throw new Error('Google Calendar not connected');
 
   const calendar = google.calendar({ version: 'v3', auth });
@@ -113,8 +127,8 @@ export async function createCalendarEvent({ calendarId, title, description, star
 /**
  * Delete a Google Calendar event and remove the DB link.
  */
-export async function deleteCalendarEvent({ calendarId, eventId }) {
-  const auth = getAuthenticatedClient();
+export async function deleteCalendarEvent({ calendarId, eventId }, req) {
+  const auth = getAuthenticatedClient(req);
   if (!auth) throw new Error('Google Calendar not connected');
 
   const calendar = google.calendar({ version: 'v3', auth });

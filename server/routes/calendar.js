@@ -24,7 +24,7 @@ const router = Router();
 
 // GET /api/v1/auth/google — initiate OAuth flow (lazy: opened when user first clicks "Connect")
 router.get('/auth/google', (req, res) => {
-  const oauth2Client = getOAuthClient();
+  const oauth2Client = getOAuthClient(req);
   if (!oauth2Client) {
     return res.status(503).json({
       error: 'Google credentials file not found. Place google-credentials.json in the project root.',
@@ -54,7 +54,7 @@ router.get('/auth/google/callback', async (req, res) => {
   }
 
   try {
-    const oauth2Client = getOAuthClient();
+    const oauth2Client = getOAuthClient(req);
     if (!oauth2Client) {
       return res.status(503).json({ error: 'Credentials file missing', code: 'CREDENTIALS_MISSING' });
     }
@@ -117,7 +117,7 @@ router.delete('/auth/google', (req, res) => {
 // GET /api/v1/calendar/events — all calendars in one call (used by sidebar)
 router.get('/calendar/events', async (req, res) => {
   try {
-    const auth = getAuthenticatedClient();
+    const auth = getAuthenticatedClient(req);
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const { timeMin, timeMax, maxResults = 100 } = req.query;
@@ -167,7 +167,7 @@ router.get('/calendar/events', async (req, res) => {
 // GET /api/v1/calendars — list user's calendars (used by AddToCalendarModal + Settings filter)
 router.get('/calendars', async (req, res) => {
   try {
-    const auth = getAuthenticatedClient();
+    const auth = getAuthenticatedClient(req);
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const calendar = google.calendar({ version: 'v3', auth });
@@ -189,7 +189,7 @@ router.get('/calendars', async (req, res) => {
 // GET /api/v1/calendars/:calendarId/events — events for one calendar
 router.get('/calendars/:calendarId/events', async (req, res) => {
   try {
-    const auth = getAuthenticatedClient();
+    const auth = getAuthenticatedClient(req);
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const { calendarId } = req.params;
@@ -225,7 +225,7 @@ router.get('/calendars/:calendarId/events', async (req, res) => {
 // POST /api/v1/calendars/:calendarId/events — create event (delegates to calendarService)
 router.post('/calendars/:calendarId/events', async (req, res) => {
   try {
-    const auth = getAuthenticatedClient();
+    const auth = getAuthenticatedClient(req);
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const { calendarId } = req.params;
@@ -235,7 +235,7 @@ router.post('/calendars/:calendarId/events', async (req, res) => {
       return res.status(400).json({ error: 'title and startDateTime are required', code: 'MISSING_FIELDS' });
     }
 
-    const event = await createCalendarEvent({ calendarId, taskId, title, description, startDateTime, endDateTime, allDay });
+    const event = await createCalendarEvent({ calendarId, taskId, title, description, startDateTime, endDateTime, allDay }, req);
     res.status(201).json({ data: event });
   } catch (err) {
     console.error('[Create calendar event error]', err);
@@ -246,11 +246,11 @@ router.post('/calendars/:calendarId/events', async (req, res) => {
 // DELETE /api/v1/calendars/:calendarId/events/:eventId
 router.delete('/calendars/:calendarId/events/:eventId', async (req, res) => {
   try {
-    const auth = getAuthenticatedClient();
+    const auth = getAuthenticatedClient(req);
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const { calendarId, eventId } = req.params;
-    const result = await deleteCalendarEvent({ calendarId, eventId });
+    const result = await deleteCalendarEvent({ calendarId, eventId }, req);
     res.json({ data: result });
   } catch (err) {
     console.error('[Delete calendar event error]', err);
