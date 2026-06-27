@@ -510,6 +510,20 @@ export default function SettingsModal({
                 >
                   Connect Google Calendar
                 </a>
+                <details className={`mt-2 text-xs ${subLabelCls}`}>
+                  <summary className="cursor-pointer hover:underline">What permissions does this ask for?</summary>
+                  <div className="mt-1.5 space-y-1 pl-2 border-l-2 border-slate-600/30">
+                    <p>
+                      Google shows a scary-looking consent screen mentioning "permanently delete calendars" — that's the maximum capability of the OAuth scope we need.
+                    </p>
+                    <p>
+                      <strong>Virta never deletes, creates, or modifies whole calendars.</strong> It only reads your list of calendars and reads/creates/deletes individual events.
+                    </p>
+                    <p>
+                      We need the broader scope because Google's API offers no narrower way to list calendars. See <code className={`px-1 rounded ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>scripts/audit-calendar-api.js</code> for the enforced safety check.
+                    </p>
+                  </div>
+                </details>
               </div>
             )}
 

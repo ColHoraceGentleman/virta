@@ -19,6 +19,20 @@ const CREDENTIALS_PATH = join(__dirname, '..', '..', 'google-credentials.json');
 // calendars) AND events operations (create/read/update/delete). The
 // `calendar.events` scope is a strict subset of `calendar`, so requesting
 // both is redundant and was confusing the OAuth grant logic.
+//
+// ⚠️  SECURITY: The `calendar` scope technically permits calendar-level
+// operations (create/delete/modify whole calendars, change ACLs). Virta MUST
+// NEVER call those APIs. We only use it because `calendarList.list()` has no
+// narrower-scope equivalent in Google's API.
+//
+// To enforce this, run `node scripts/audit-calendar-api.js`. It is run in CI
+// and as a pre-release check. The audit forbids: calendars.insert/delete/
+// patch/update/clear, acl.*, settings.*, colors.*. See that script for the
+// authoritative list.
+//
+// If you ever need a forbidden operation, the right answer is to switch
+// OAuth clients (e.g. a dedicated project with a different scope) or build
+// a separate product — NOT to loosen this constraint.
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar'
 ];
