@@ -100,15 +100,6 @@ export default function KanbanColumn({ column, onTaskClick, onOpenCreateModal, o
           </div>
         )}
       </div>
-
-      {/* Add Task button */}
-      <button
-        onClick={() => onOpenCreateModal(column.id)}
-        className={`m-2 mt-0 flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-colors ${addRowColor}`}
-      >
-        <span className="text-lg leading-none">+</span>
-        Add task
-      </button>
     </div>
   );
 }
