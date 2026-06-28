@@ -297,12 +297,12 @@ Add to the response:
 
 Frontend renders these as additional rows in the relevant sections.
 
-### Open questions for Patrick before build
+### Resolved (Patrick, 2026-06-28)
 
-1. **Subtask in Today sidebar:** separate items, or nested under parent? (leaning separate for simplicity)
-2. **Reordering:** drag-to-reorder subtasks within a task? (leaning yes — uses existing dnd-kit)
-3. **Recurring subtasks:** out of scope for v6, but data model should support `parent_subtask_id` later if needed
-4. **Subtask notes:** description field on each subtask, or share the parent's notes? (leaning own description)
+1. **Today sidebar display** — separate items with "(under [parent])" hint ✅
+2. **Drag-to-reorder** subtasks within a task ✅ (uses existing dnd-kit)
+3. **Each subtask has its own notes/description** ✅ (own description field, not shared with parent)
+4. **Recurring subtasks** — deferred (not now, data model supports `parent_subtask_id` later)
 
 ### Definition of Done for #7
 
@@ -359,4 +359,4 @@ Realistic build session: half a day.
 - `tools/agent-capabilities.md` — what's needed for daily briefing integration
 - `projects/virta-multi-account-roadmap.md` — Milestone 1 (daily briefing) will read `/calendar/today` which now includes subtasks
 
-*Last updated: 2026-06-27*
+*Last updated: 2026-06-28 (open questions resolved by Patrick)*
