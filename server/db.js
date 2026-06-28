@@ -189,27 +189,22 @@ if (!projectCols.includes('default_add_to_calendar')) {
   try { db.exec('ALTER TABLE projects ADD COLUMN default_add_to_calendar INTEGER DEFAULT 0'); } catch { /* ignore */ }
 }
 
-// One-shot: migrate any google_credentials rows out of the DB and into macOS Keychain.
-// Tokens are secrets — they shouldn't live in a sqlite file that's gitignored-but-on-disk.
-// After this runs the DB rows are cleared (schema stays; we'll leave it as a stub in case
-// we ever want to roll back). Idempotent: re-running is a no-op once Keychain holds tokens.
-import('./services/keychain.js').then(({ storeTokens }) => {
-  try {
-    const row = db.prepare('SELECT access_token, refresh_token, token_expiry FROM google_credentials WHERE id = 1').get();
-    if (row?.refresh_token) {
-      storeTokens({
-        access_token: row.access_token,
-        refresh_token: row.refresh_token,
-        expiry_date: row.token_expiry
-      });
-      db.prepare('UPDATE google_credentials SET access_token = NULL, refresh_token = NULL WHERE id = 1').run();
-      console.log('[db] Migrated Google OAuth tokens from sqlite to macOS Keychain (service=virta, account=google-oauth)');
-    }
-  } catch (err) {
-    // Keychain write failure shouldn't crash startup — the OAuth flow will just re-prompt.
-    console.warn('[db] Keychain migration skipped:', err.message);
-  }
-});
+// Note: google_credentials table is kept for schema compatibility but is no longer used.
+// Calendar integration moved to iCal feed subscriptions (calendar_feeds table).
+
+// Calendar feeds (iCal subscriptions)
+safeExec(`
+  CREATE TABLE IF NOT EXISTS calendar_feeds (
+    id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    name       TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    color      TEXT DEFAULT '#6366f1',
+    enabled    INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
+    last_fetched_at TEXT,
+    last_error TEXT
+  )
+`);
 
 // Add project_id column to categories
 const categoryCols = db.prepare('PRAGMA table_info(categories)').all().map(c => c.name);

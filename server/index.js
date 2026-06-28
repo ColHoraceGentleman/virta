@@ -31,7 +31,7 @@ app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/columns', columnsRouter);
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/notes', notesRouter);
-app.use('/api/v1', calendarRouter);
+app.use('/api/v1/calendar', calendarRouter);
 app.use('/api/v1/events', eventsRouter);
 
 app.use('/api/v1/gmail', gmailRouter);

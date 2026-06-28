@@ -7,7 +7,6 @@ import { dirname, join } from 'path';
 import db, { generateId } from '../db.js';
 import * as taskService from '../services/taskService.js';
 import { broadcast } from '../services/sseService.js';
-import { createCalendarEvent } from '../services/calendarService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const attachmentsDir = join(__dirname, '..', '..', 'data', 'attachments');
@@ -34,32 +33,13 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { columnId, title, description, dueDate, priority, assignees, categoryId, addToCalendar, calendarId } = req.body;
+    const { columnId, title, description, dueDate, priority, assignees, categoryId } = req.body;
     if (!columnId || !title) {
       return res.status(400).json({ error: 'columnId and title are required', code: 'VALIDATION_ERROR' });
     }
     const task = taskService.createTask({ columnId, title, description, dueDate, priority, assignees, categoryId });
     broadcast({ type: 'task_created', data: task });
-
-    // Optionally push to Google Calendar immediately (when TaskCreateModal checkbox is checked).
-    // Failures here are non-fatal — the task is already created, we just skip the calendar link.
-    let calendarEvent = null;
-    if (addToCalendar && calendarId) {
-      try {
-        calendarEvent = await createCalendarEvent({
-          calendarId,
-          taskId: task.id,
-          title: task.title,
-          description: task.description || '',
-          startDateTime: dueDate ? `${dueDate}T00:00:00` : new Date().toISOString().split('T')[0] + 'T00:00:00',
-          allDay: true
-        });
-      } catch (calErr) {
-        console.warn('[tasks] calendar push failed (non-fatal):', calErr.message);
-      }
-    }
-
-    res.json({ data: { ...task, calendarEvent } });
+    res.json({ data: task });
   } catch (err) {
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }

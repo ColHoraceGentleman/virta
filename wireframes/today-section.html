@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Virta — Today Section Wireframe</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-elev: #1e293b;
+    --bg-row: #0f172a;
+    --bg-row-past: #1a2235;
+    --bg-row-active: #1e2740;
+    --text: #e2e8f0;
+    --text-past: #475569;
+    --text-completed: #64748b;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --border-active: #6366f1;
+    --accent: #6366f1;
+    --cal-1: #fc8207;
+    --cal-2: #039be5;
+    --cal-3: #0b8043;
+    --cal-task: #6366f1;
+    --cal-completed: #16a34a;
+    --hover: #334155;
+    --shadow: 0 10px 25px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #020617;
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 32px;
+  }
+
+  .frame {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    height: 720px;
+  }
+  .frame.collapsed { width: 56px; }
+  .frame.expanded  { width: 360px; }
+
+  .frame-title {
+    padding: 12px 16px;
+    background: #020617;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: #020617;
+  }
+  .header .nav-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .header .nav-btn:hover { background: var(--hover); color: var(--text); }
+  .header .today-btn {
+    background: var(--accent);
+    border: none;
+    color: white;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .header .header-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex: 1;
+    text-align: center;
+  }
+
+  /* Body */
+  .body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+  .body::-webkit-scrollbar { width: 6px; }
+  .body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Sections */
+  .section-label {
+    padding: 10px 16px 4px;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  /* Row */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .row:hover { background: var(--hover); }
+
+  /* Row variants */
+  .row.past {
+    opacity: 0.4;
+  }
+  .row.past .row-time { color: var(--text-past); }
+  .row.past .row-title { color: var(--text-past); text-decoration: line-through; }
+  .row.active {
+    background: rgba(99,102,241,0.08);
+    border-left-color: var(--border-active);
+  }
+  .row.completed {
+    opacity: 0.45;
+  }
+  .row.completed .row-title {
+    color: var(--text-completed);
+    text-decoration: line-through;
+    text-decoration-color: var(--cal-completed);
+  }
+  .row.completed .row-time {
+    color: var(--cal-completed);
+  }
+
+  .row-bar {
+    width: 3px;
+    height: 28px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .row-time {
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 50px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .row-content {
+    flex: 1;
+    min-width: 0;
+  }
+  .row-title {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  /* Scroll indicator (the "viewport marker") */
+  .marker {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    margin: 4px 16px;
+    position: relative;
+  }
+  .marker::after {
+    content: "now";
+    position: absolute;
+    right: 8px;
+    top: -8px;
+    font-size: 9px;
+    color: var(--accent);
+    background: var(--bg);
+    padding: 0 4px;
+    letter-spacing: 0.1em;
+  }
+
+  /* Collapsed state */
+  .collapsed-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 12px;
+    gap: 8px;
+  }
+  .collapsed-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    position: relative;
+  }
+  .collapsed-icon:hover { background: var(--hover); }
+  .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 10px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Caption */
+  .caption {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-align: center;
+    max-width: 360px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<!-- Frame 1: Expanded (Today, mixed list, scroll-to-now) -->
+<div>
+  <div class="frame expanded">
+    <div class="frame-title">Today Section — Expanded (2:14 PM)</div>
+    <div class="header">
+      <button class="nav-btn">◀</button>
+      <span class="header-label">Today · Sat, Jun 27</span>
+      <button class="nav-btn">▶</button>
+      <button class="today-btn">Today</button>
+    </div>
+    <div class="body">
+      <div class="row past">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time">11:00 AM</div>
+        <div class="row-content">
+          <div class="row-title">Review v5 spec</div>
+          <div class="row-meta">Task · today</div>
+        </div>
+      </div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓ 1:30 PM</div>
+        <div class="row-content">
+          <div class="row-title">Wireframe the today section</div>
+          <div class="row-meta">Task · completed 2:05 PM</div>
+        </div>
+      </div>
+      <div class="marker"></div>
+      <div class="row active">
+        <div class="row-bar" style="background: var(--cal-1)"></div>
+        <div class="row-time">2:00 PM</div>
+        <div class="row-content">
+          <div class="row-title">Architecture review</div>
+          <div class="row-meta">Work · ends 3:00 PM</div>
+        </div>
+      </div>
+
+      <div class="section-label">Upcoming</div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-2)"></div>
+        <div class="row-time">3:30 PM</div>
+        <div class="row-content">
+          <div class="row-title">Dentist appointment</div>
+          <div class="row-meta">Personal · 1 hr</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-3)"></div>
+        <div class="row-time">5:30 PM</div>
+        <div class="row-content">
+          <div class="row-title">Family dinner</div>
+          <div class="row-meta">Family · 2 hr</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-1)"></div>
+        <div class="row-time">8:00 PM</div>
+        <div class="row-content">
+          <div class="row-title">Movie night</div>
+          <div class="row-meta">Personal · 2 hr</div>
+        </div>
+      </div>
+
+      <div class="section-label">Tasks Due Today</div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time"></div>
+        <div class="row-content">
+          <div class="row-title">Pick up dry cleaning</div>
+          <div class="row-meta">Task · no time</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time"></div>
+        <div class="row-content">
+          <div class="row-title">Call mom</div>
+          <div class="row-meta">Task · no time</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time"></div>
+        <div class="row-content">
+          <div class="row-title">Water plants</div>
+          <div class="row-meta">Task · no time</div>
+        </div>
+      </div>
+
+      <div class="section-label">Completed</div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Pay credit card bill</div>
+          <div class="row-meta">Task · completed 9:15 AM</div>
+        </div>
+      </div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Review cinder fixes #5</div>
+          <div class="row-meta">Task · completed 10:42 AM</div>
+        </div>
+      </div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Wireframe the today section</div>
+          <div class="row-meta">Task · completed 2:05 PM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">
+    Expanded. On load and every minute, scroll auto-positions so only
+    the most recent past item + "now" marker + active event are visible
+    at the top of the viewport. Older past items require scrolling up.
+    Active event stays bright. Completed tasks at the bottom.
+    Tasks without a specific time live in their own "Tasks Due Today" section.
+  </p>
+</div>
+
+<!-- Frame 2: Collapsed (icon strip with badge) -->
+<div>
+  <div class="frame collapsed">
+    <div class="frame-title">Collapsed</div>
+    <div class="collapsed-body">
+      <div class="collapsed-icon">
+        📅
+        <div class="badge">6</div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">
+    Collapsed. 56px wide.
+    Badge = unfinished timed items + untimed tasks due today
+    (excludes completed items).
+    Click icon to expand.
+  </p>
+</div>
+
+<!-- Frame 3: Tomorrow (full color, future) -->
+<div>
+  <div class="frame expanded">
+    <div class="frame-title">Tomorrow (always bright)</div>
+    <div class="header">
+      <button class="nav-btn">◀</button>
+      <span class="header-label">Sun, Jun 28</span>
+      <button class="nav-btn">▶</button>
+      <button class="today-btn">Today</button>
+    </div>
+    <div class="body">
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-1)"></div>
+        <div class="row-time">10:00 AM</div>
+        <div class="row-content">
+          <div class="row-title">Brunch with the Baileys</div>
+          <div class="row-meta">Family · 2 hr</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time"></div>
+        <div class="row-content">
+          <div class="row-title">Submit wholesale line sheet draft</div>
+          <div class="row-meta">Task · scheduled for tomorrow</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-2)"></div>
+        <div class="row-time">2:00 PM</div>
+        <div class="row-content">
+          <div class="row-title">Soccer practice</div>
+          <div class="row-meta">Family · 1.5 hr</div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time">4:00 PM</div>
+        <div class="row-content">
+          <div class="row-title">Review Atreyu subagent logs</div>
+          <div class="row-meta">Task · scheduled for tomorrow</div>
+        </div>
+      </div>
+
+      <div class="section-label">Completed (ahead of schedule)</div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓ today</div>
+        <div class="row-content">
+          <div class="row-title">Draft viral spec v6</div>
+          <div class="row-meta">Future task · completed today 1:50 PM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">
+    Tomorrow's view. Everything bright (no gray).
+    Future tasks completed today appear under "Completed (ahead of schedule)"
+    so you can see your productivity regardless of which day you're viewing.
+  </p>
+</div>
+
+<!-- Frame 4: Yesterday (mostly gray, for context) -->
+<div>
+  <div class="frame expanded">
+    <div class="frame-title">Yesterday (mostly gray)</div>
+    <div class="header">
+      <button class="nav-btn">◀</button>
+      <span class="header-label">Fri, Jun 26</span>
+      <button class="nav-btn">▶</button>
+      <button class="today-btn">Today</button>
+    </div>
+    <div class="body">
+      <div class="row past">
+        <div class="row-bar" style="background: var(--cal-1)"></div>
+        <div class="row-time">9:00 AM</div>
+        <div class="row-content">
+          <div class="row-title">Client kickoff call</div>
+          <div class="row-meta">Work · 1 hr</div>
+        </div>
+      </div>
+      <div class="row past">
+        <div class="row-bar" style="background: var(--cal-task)"></div>
+        <div class="row-time">11:00 AM</div>
+        <div class="row-content">
+          <div class="row-title">Ship v4 categories fix</div>
+          <div class="row-meta">Task · yesterday</div>
+        </div>
+      </div>
+      <div class="row past">
+        <div class="row-bar" style="background: var(--cal-2)"></div>
+        <div class="row-time">1:00 PM</div>
+        <div class="row-content">
+          <div class="row-title">Lunch with Sam</div>
+          <div class="row-meta">Personal · 1.5 hr</div>
+        </div>
+      </div>
+
+      <div class="section-label">Completed</div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Read OpenClaw release notes</div>
+          <div class="row-meta">Task · completed 8:30 AM</div>
+        </div>
+      </div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Pickup groceries</div>
+          <div class="row-meta">Task · completed 5:45 PM</div>
+        </div>
+      </div>
+      <div class="row completed">
+        <div class="row-bar" style="background: var(--cal-completed)"></div>
+        <div class="row-time">✓</div>
+        <div class="row-content">
+          <div class="row-title">Update memory index</div>
+          <div class="row-meta">Task · completed 9:10 PM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">
+    Yesterday. Everything's in the past — all events gray.
+    Completed tasks visible at the bottom for a sense of what got done.
+  </p>
+</div>
+
+</body>
+</html>

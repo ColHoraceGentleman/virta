@@ -279,64 +279,65 @@ export default function SettingsModal({
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0].hex);
 
-  // Google Calendar section
-  const [calAuthStatus, setCalAuthStatus] = useState(null); // null=loading, {connected, credentialsFile}
-  const [calDisconnecting, setCalDisconnecting] = useState(false);
-  const [calFilter, setCalFilter] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('calendar-filter') || 'null'); } catch { return null; }
-  });
-  const [calList, setCalList] = useState([]);
+    // Calendar feeds section
+  const [feeds, setFeeds] = useState([]);
+  const [feedsLoading, setFeedsLoading] = useState(true);
+  const [feedError, setFeedError] = useState(null);
+  const [showAddFeed, setShowAddFeed] = useState(false);
+  const [newFeedName, setNewFeedName] = useState('');
+  const [newFeedUrl, setNewFeedUrl] = useState('');
+  const [newFeedColor, setNewFeedColor] = useState('#6366f1');
+  const [addingFeed, setAddingFeed] = useState(false);
 
-  const [calError, setCalError] = useState(null);
-
-  // Load calendar auth status + calendar list on mount (and after connect/disconnect)
-  async function loadCalStatus() {
-    setCalError(null);
+  async function loadFeeds() {
+    setFeedsLoading(true);
+    setFeedError(null);
     try {
-      const s = await api.googleAuthStatus();
-      setCalAuthStatus(s);
-      if (s.connected) {
-        try {
-          const cals = await api.listCalendars();
-          setCalList(cals);
-        } catch (calErr) {
-          setCalError(`Could not load calendar list: ${calErr.message}`);
-        }
-      } else {
-        setCalList([]);
-      }
+      const data = await api.getCalendarFeeds();
+      setFeeds(data);
     } catch (err) {
-      setCalError(`Could not reach the Virta API: ${err.message}. Reload the page and try again.`);
-      setCalAuthStatus({ credentialsFile: false, connected: false });
+      setFeedError(err.message);
+    } finally {
+      setFeedsLoading(false);
     }
   }
-  useEffect(() => { loadCalStatus(); }, []);
+  useEffect(() => { loadFeeds(); }, []);
 
-  function toggleCalendarFilter(calId) {
-    setCalFilter(prev => {
-      // null = show all. Toggling off a calendar means we now have an explicit allow-list.
-      const current = prev === null ? calList.map(c => c.id) : prev;
-      const next = current.includes(calId)
-        ? current.filter(id => id !== calId)
-        : [...current, calId];
-      const toStore = next.length === calList.length ? null : next;
-      localStorage.setItem('calendar-filter', JSON.stringify(toStore));
-      return toStore;
-    });
+  async function handleAddFeed(e) {
+    e.preventDefault();
+    if (!newFeedName.trim() || !newFeedUrl.trim()) return;
+    setAddingFeed(true);
+    setFeedError(null);
+    try {
+      await api.addCalendarFeed({ name: newFeedName.trim(), url: newFeedUrl.trim(), color: newFeedColor });
+      setNewFeedName('');
+      setNewFeedUrl('');
+      setNewFeedColor('#6366f1');
+      setShowAddFeed(false);
+      await loadFeeds();
+    } catch (err) {
+      setFeedError(err.message);
+    } finally {
+      setAddingFeed(false);
+    }
   }
 
-  async function handleDisconnect() {
-    setCalDisconnecting(true);
+  async function handleDeleteFeed(id) {
+    if (!confirm('Remove this calendar feed?')) return;
     try {
-      await api.googleDisconnect();
-      localStorage.removeItem('calendar-filter');
-      setCalFilter(null);
-      setCalList([]);
-      await loadCalStatus();
+      await api.deleteCalendarFeed(id);
+      await loadFeeds();
     } catch (err) {
-      console.error('Failed to disconnect:', err);
-    } finally {
-      setCalDisconnecting(false);
+      setFeedError(err.message);
+    }
+  }
+
+  async function handleToggleFeed(id, enabled) {
+    try {
+      await api.updateCalendarFeed(id, { enabled: !enabled });
+      await loadFeeds();
+    } catch (err) {
+      setFeedError(err.message);
     }
   }
 
@@ -491,115 +492,106 @@ export default function SettingsModal({
 
           {/* Divider */}
 
-          {/* ── GLOBAL → Google Calendar ── */}
+          {/* ── GLOBAL → Calendar Feeds ── */}
           <section>
-            <h3 className={`text-xs uppercase tracking-wide font-medium mb-3 ${subLabelCls}`}>Google Calendar</h3>
+            <h3 className={`text-xs uppercase tracking-wide font-medium mb-3 ${subLabelCls}`}>Calendar Feeds (iCal)</h3>
+            <p className={`text-xs ${subLabelCls} mb-3`}>
+              Paste iCal feed URLs from Google Calendar, iCloud, Outlook, or any calendar app.
+            </p>
 
-            {calAuthStatus === null && (
+            {feedError && (
+              <div className={`text-xs text-red-400 bg-red-400/10 border border-red-400/30 rounded-md p-2 mb-2`}>
+                {feedError}
+              </div>
+            )}
+
+            {feedsLoading && feeds.length === 0 && (
               <p className={`text-xs ${subLabelCls}`}>Loading…</p>
             )}
 
-            {calError && (
-              <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-md p-2 space-y-1">
-                <p>{calError}</p>
-                <button type="button" onClick={loadCalStatus} className="text-indigo-400 hover:underline">
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {calAuthStatus && !calAuthStatus.credentialsFile && !calError && (
-              <p className="text-xs text-red-400">
-                google-credentials.json is missing from the project root. Add it to enable calendar integration.
-              </p>
-            )}
-
-            {calAuthStatus?.credentialsFile && !calAuthStatus.connected && (
-              <div className="space-y-2">
-                <p className={`text-xs ${subLabelCls}`}>
-                  Connect your Google account to see calendar events in the sidebar.
-                </p>
-                <a
-                  href={api.googleConnectUrl()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
-                >
-                  Connect Google Calendar
-                </a>
-                <details className={`mt-2 text-xs ${subLabelCls}`}>
-                  <summary className="cursor-pointer hover:underline">What permissions does this ask for?</summary>
-                  <div className="mt-1.5 space-y-1 pl-2 border-l-2 border-slate-600/30">
-                    <p>
-                      Google shows a scary-looking consent screen mentioning "permanently delete calendars" — that's the maximum capability of the OAuth scope we need.
-                    </p>
-                    <p>
-                      <strong>Virta never deletes, creates, or modifies whole calendars.</strong> It only reads your list of calendars and reads/creates/deletes individual events.
-                    </p>
-                    <p>
-                      We need the broader scope because Google's API offers no narrower way to list calendars. See <code className={`px-1 rounded ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}>scripts/audit-calendar-api.js</code> for the enforced safety check.
-                    </p>
+            {feeds.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {feeds.map(feed => (
+                  <div key={feed.id} className={`flex items-center gap-2 px-2 py-2 rounded-lg ${darkMode ? 'bg-slate-700/40' : 'bg-slate-100'}`}>
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: feed.color }} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium truncate ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>{feed.name}</p>
+                      {feed.last_error && (
+                        <p className="text-[10px] text-red-400 truncate">Error: {feed.last_error}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFeed(feed.id, feed.enabled)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${feed.enabled ? 'text-emerald-400' : `${subLabelCls}`}`}
+                      title={feed.enabled ? 'Disable' : 'Enable'}
+                    >
+                      {feed.enabled ? 'on' : 'off'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteFeed(feed.id)}
+                      className={`text-[10px] text-red-400 hover:text-red-300 px-1`}
+                      title="Remove feed"
+                    >
+                      ✕
+                    </button>
                   </div>
-                </details>
+                ))}
               </div>
             )}
 
-            {calAuthStatus?.connected && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-emerald-400">✓ Connected</p>
+            {showAddFeed ? (
+              <form onSubmit={handleAddFeed} className={`space-y-2 p-3 rounded-lg border ${formBg}`}>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newFeedName}
+                  onChange={e => setNewFeedName(e.target.value)}
+                  placeholder="Name (e.g. iCloud, Work)"
+                  className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-500 ${formInputCls}`}
+                />
+                <input
+                  type="text"
+                  value={newFeedUrl}
+                  onChange={e => setNewFeedUrl(e.target.value)}
+                  placeholder="https:// or webcal:// URL"
+                  className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-500 ${formInputCls}`}
+                />
+                <div className="flex items-center gap-2">
+                  <label className={`text-xs ${subLabelCls}`}>Color:</label>
+                  <input
+                    type="color"
+                    value={newFeedColor}
+                    onChange={e => setNewFeedColor(e.target.value)}
+                    className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={addingFeed || !newFeedName.trim() || !newFeedUrl.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg"
+                  >
+                    {addingFeed ? 'Adding…' : 'Add Feed'}
+                  </button>
                   <button
                     type="button"
-                    onClick={handleDisconnect}
-                    disabled={calDisconnecting}
-                    className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                    onClick={() => { setShowAddFeed(false); setNewFeedName(''); setNewFeedUrl(''); }}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${darkMode ? 'border-slate-600 text-slate-400 hover:text-slate-200' : 'border-slate-300 text-slate-500 hover:text-slate-700'}`}
                   >
-                    {calDisconnecting ? 'Disconnecting…' : 'Disconnect'}
+                    Cancel
                   </button>
                 </div>
-
-                {calList.length > 0 && (
-                  <div>
-                    <p className={`text-xs uppercase tracking-wider font-medium mb-2 ${subLabelCls}`}>
-                      Calendars shown
-                    </p>
-                    <div className="space-y-1">
-                      {calList.map(cal => {
-                        const checked = calFilter === null || calFilter.includes(cal.id);
-                        return (
-                          <label
-                            key={cal.id}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${darkMode ? 'hover:bg-slate-700/40' : 'hover:bg-slate-100'}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleCalendarFilter(cal.id)}
-                              className="rounded"
-                            />
-                            <div
-                              className="w-2 h-6 rounded-sm flex-shrink-0"
-                              style={{ backgroundColor: cal.color || '#6366f1' }}
-                            />
-                            <span className={`text-xs ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                              {cal.primary ? '★ ' : ''}{cal.name}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    {calFilter !== null && (
-                      <button
-                        type="button"
-                        onClick={() => { setCalFilter(null); localStorage.removeItem('calendar-filter'); }}
-                        className={`mt-2 text-xs ${subLabelCls} hover:underline`}
-                      >
-                        Show all calendars
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddFeed(true)}
+                className={`w-full text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${darkMode ? 'border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-500' : 'border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400'}`}
+              >
+                + Add Calendar Feed
+              </button>
             )}
           </section>
 
@@ -614,23 +606,7 @@ export default function SettingsModal({
                   CURRENT PROJECT: {currentProject.name}
                 </p>
 
-                {/* Calendar default toggle */}
-                <label className={`flex items-start gap-2 px-3 py-2 mb-4 rounded-lg cursor-pointer transition-colors ${darkMode ? 'bg-slate-700/40 hover:bg-slate-700/60' : 'bg-slate-100 hover:bg-slate-200'}`}>
-                  <input
-                    type="checkbox"
-                    checked={!!currentProject.default_add_to_calendar}
-                    onChange={e => onUpdateProject(currentProject.id, { defaultAddToCalendar: e.target.checked })}
-                    className="mt-0.5 rounded"
-                  />
-                  <div>
-                    <p className={`text-xs font-medium ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                      Default "Add to Calendar" for new tasks
-                    </p>
-                    <p className={`text-xs mt-0.5 ${subLabelCls}`}>
-                      When creating a task in this project, the "Add to Calendar" option is pre-checked.
-                    </p>
-                  </div>
-                </label>
+
 
                 {/* Columns sub-section */}
                 <div className={sectionBg}>

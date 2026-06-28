@@ -1,300 +1,243 @@
 import { Router } from 'express';
-import { google } from 'googleapis';
-import { existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import db from '../db.js';
-import { storeTokens, readTokens, clearTokens } from '../services/keychain.js';
-import {
-  getOAuthClient,
-  getAuthenticatedClient,
-  createCalendarEvent,
-  deleteCalendarEvent
-} from '../services/calendarService.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CREDENTIALS_PATH = join(__dirname, '..', '..', 'google-credentials.json');
-
-// Use the broad `calendar` scope only — it covers both calendarList (listing
-// calendars) AND events operations (create/read/update/delete). The
-// `calendar.events` scope is a strict subset of `calendar`, so requesting
-// both is redundant and was confusing the OAuth grant logic.
-//
-// ⚠️  SECURITY: The `calendar` scope technically permits calendar-level
-// operations (create/delete/modify whole calendars, change ACLs). Virta MUST
-// NEVER call those APIs. We only use it because `calendarList.list()` has no
-// narrower-scope equivalent in Google's API.
-//
-// To enforce this, run `node scripts/audit-calendar-api.js`. It is run in CI
-// and as a pre-release check. The audit forbids: calendars.insert/delete/
-// patch/update/clear, acl.*, settings.*, colors.*. See that script for the
-// authoritative list.
-//
-// If you ever need a forbidden operation, the right answer is to switch
-// OAuth clients (e.g. a dedicated project with a different scope) or build
-// a separate product — NOT to loosen this constraint.
-const SCOPES = [
-  'https://www.googleapis.com/auth/calendar'
-];
+import db, { generateId } from '../db.js';
+import { fetchFeed, fetchAllFeeds, clearCache } from '../services/icalService.js';
+import * as taskService from '../services/taskService.js';
 
 const router = Router();
 
-// GET /api/v1/auth/google — initiate OAuth flow (lazy: opened when user first clicks "Connect")
-router.get('/auth/google', (req, res) => {
-  const oauth2Client = getOAuthClient(req);
-  if (!oauth2Client) {
-    return res.status(503).json({
-      error: 'Google credentials file not found. Place google-credentials.json in the project root.',
-      code: 'CREDENTIALS_MISSING'
-    });
-  }
+// ── Feed CRUD ────────────────────────────────────────────────────────────────
 
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
-    scope: SCOPES
-  });
-
-  res.redirect(authUrl);
-});
-
-// GET /api/v1/auth/google/callback — OAuth2 callback
-// After storing tokens, posts a message back to the opener (CalendarSidebar) then closes.
-router.get('/auth/google/callback', async (req, res) => {
-  const { code, error } = req.query;
-
-  if (error) {
-    return res.status(400).send(`<h2>Auth failed: ${error}</h2><p>Close this tab and try again.</p>`);
-  }
-  if (!code) {
-    return res.status(400).json({ error: 'Missing authorization code', code: 'MISSING_CODE' });
-  }
-
+// GET /api/v1/calendar/feeds — list all feeds
+router.get('/feeds', (req, res) => {
   try {
-    const oauth2Client = getOAuthClient(req);
-    if (!oauth2Client) {
-      return res.status(503).json({ error: 'Credentials file missing', code: 'CREDENTIALS_MISSING' });
-    }
-
-    const { tokens } = await oauth2Client.getToken(code);
-
-    storeTokens({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token || null,
-      expiry_date: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null
-    });
-
-    // Tell the opener (CalendarSidebar) that auth succeeded, then close the tab.
-    // Falls back gracefully if the tab was opened directly (no window.opener).
-    res.send(`<!doctype html>
-<html><head><title>Virta — Google Calendar connected</title></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:48px;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;box-sizing:border-box;">
-  <div style="text-align:center;max-width:420px;">
-    <div style="font-size:48px;line-height:1;margin-bottom:16px;color:#6366f1;">✓</div>
-    <h2 style="color:#6366f1;margin:0 0 8px 0;font-weight:500;">Google Calendar connected</h2>
-    <p style="opacity:.7;margin:0;">You can close this tab and return to Virta.</p>
-  </div>
-  <script>
-    try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage('virta:google-auth-success', '*');
-        setTimeout(() => window.close(), 300);
-      }
-    } catch (e) { /* no opener — user opened this directly */ }
-  </script>
-</body></html>`);
-  } catch (err) {
-    console.error('[Calendar OAuth callback error]', err);
-    res.status(500).send(`<h2>Auth error</h2><p>${err.message}</p>`);
-  }
-});
-
-// GET /api/v1/auth/status
-router.get('/auth/status', (req, res) => {
-  const credentialsFileExists = existsSync(CREDENTIALS_PATH);
-  const tokens = readTokens();
-  res.json({
-    credentialsFile: credentialsFileExists,
-    connected: !!tokens?.refresh_token,
-    tokenExpiry: tokens?.expiry_date || null
-  });
-});
-
-// DELETE /api/v1/auth/google — disconnect (clears Keychain + all calendar event links)
-router.delete('/auth/google', (req, res) => {
-  clearTokens();
-  try {
-    db.prepare('DELETE FROM calendar_events').run();
-  } catch (err) {
-    console.warn('[calendar] could not clear calendar_events:', err.message);
-  }
-  res.json({ data: { disconnected: true } });
-});
-
-// GET /api/v1/calendar/events — all calendars in one call (used by sidebar)
-router.get('/calendar/events', async (req, res) => {
-  try {
-    const auth = getAuthenticatedClient(req);
-    if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
-
-    const { timeMin, timeMax, maxResults = 100 } = req.query;
-    const calendar = google.calendar({ version: 'v3', auth });
-
-    const calList = await calendar.calendarList.list({
-      showHidden: false,
-      minAccessRole: 'freeBusyReader'
-    });
-    const calendars = (calList.data.items || []); // include all — filter is applied in the sidebar via calFilter
-
-    const allEvents = [];
-    for (const cal of calendars) {
-      try {
-        const ev = await calendar.events.list({
-          calendarId: cal.id,
-          timeMin: timeMin || new Date().toISOString(),
-          timeMax,
-          maxResults: parseInt(maxResults, 10),
-          singleEvents: true,
-          orderBy: 'startTime'
-        });
-        for (const e of (ev.data.items || [])) {
-          allEvents.push({
-            id: e.id,
-            calendarId: cal.id,
-            calendarName: cal.summary,
-            calendarColor: cal.backgroundColor,
-            title: e.summary || '(no title)',
-            description: e.description || '',
-            start: e.start?.dateTime || e.start?.date,
-            end: e.end?.dateTime || e.end?.date,
-            allDay: !e.start?.dateTime,
-            htmlLink: e.htmlLink
-          });
-        }
-      } catch (e) {
-        console.warn(`[calendar] skip ${cal.id}: ${e.message}`);
-      }
-    }
-
-    allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
-    res.json({ data: allEvents });
-  } catch (err) {
-    console.error('[All calendar events error]', err);
-    res.status(500).json({ error: err.message, code: 'CALENDAR_ERROR' });
-  }
-});
-
-// GET /api/v1/calendars — list user's calendars (used by AddToCalendarModal + Settings filter)
-router.get('/calendars', async (req, res) => {
-  try {
-    const auth = getAuthenticatedClient(req);
-    if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
-
-    const calendar = google.calendar({ version: 'v3', auth });
-    // showHidden=true surfaces calendars the user has unchecked in the UI.
-    // minAccessRole=freeBusyReader returns calendars with any access level
-    // (including ones shared read-only with the user).
-    const response = await calendar.calendarList.list({
-      showHidden: true,
-      minAccessRole: 'freeBusyReader'
-    });
-    const calendars = (response.data.items || []).map(c => ({
-      id: c.id,
-      name: c.summary,
-      primary: c.primary || false,
-      color: c.backgroundColor,
-      accessRole: c.accessRole,
-      selected: c.selected !== false,
-      hidden: c.hidden === true
-    }));
-
-    res.json({ data: calendars });
-  } catch (err) {
-    console.error('[Calendars list error]', err);
-    res.status(500).json({ error: err.message, code: 'CALENDAR_ERROR' });
-  }
-});
-
-// GET /api/v1/calendars/:calendarId/events — events for one calendar
-router.get('/calendars/:calendarId/events', async (req, res) => {
-  try {
-    const auth = getAuthenticatedClient(req);
-    if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
-
-    const { calendarId } = req.params;
-    const { timeMin, timeMax, maxResults = 50 } = req.query;
-
-    const calendar = google.calendar({ version: 'v3', auth });
-    const response = await calendar.events.list({
-      calendarId: decodeURIComponent(calendarId),
-      timeMin: timeMin || new Date().toISOString(),
-      timeMax,
-      maxResults: parseInt(maxResults, 10),
-      singleEvents: true,
-      orderBy: 'startTime'
-    });
-
-    const events = (response.data.items || []).map(e => ({
-      id: e.id,
-      title: e.summary,
-      description: e.description,
-      start: e.start?.dateTime || e.start?.date,
-      end: e.end?.dateTime || e.end?.date,
-      allDay: !e.start?.dateTime,
-      htmlLink: e.htmlLink
-    }));
-
-    res.json({ data: events });
-  } catch (err) {
-    console.error('[Calendar events error]', err);
-    res.status(500).json({ error: err.message, code: 'CALENDAR_ERROR' });
-  }
-});
-
-// POST /api/v1/calendars/:calendarId/events — create event (delegates to calendarService)
-router.post('/calendars/:calendarId/events', async (req, res) => {
-  try {
-    const auth = getAuthenticatedClient(req);
-    if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
-
-    const { calendarId } = req.params;
-    const { taskId, title, description, startDateTime, endDateTime, allDay } = req.body;
-
-    if (!title || !startDateTime) {
-      return res.status(400).json({ error: 'title and startDateTime are required', code: 'MISSING_FIELDS' });
-    }
-
-    const event = await createCalendarEvent({ calendarId, taskId, title, description, startDateTime, endDateTime, allDay }, req);
-    res.status(201).json({ data: event });
-  } catch (err) {
-    console.error('[Create calendar event error]', err);
-    res.status(500).json({ error: err.message, code: 'CALENDAR_ERROR' });
-  }
-});
-
-// DELETE /api/v1/calendars/:calendarId/events/:eventId
-router.delete('/calendars/:calendarId/events/:eventId', async (req, res) => {
-  try {
-    const auth = getAuthenticatedClient(req);
-    if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
-
-    const { calendarId, eventId } = req.params;
-    const result = await deleteCalendarEvent({ calendarId, eventId }, req);
-    res.json({ data: result });
-  } catch (err) {
-    console.error('[Delete calendar event error]', err);
-    res.status(500).json({ error: err.message, code: 'CALENDAR_ERROR' });
-  }
-});
-
-// GET /api/v1/tasks/:taskId/calendar-events — events linked to a task
-router.get('/tasks/:taskId/calendar-events', (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const events = db.prepare('SELECT * FROM calendar_events WHERE task_id = ?').all(taskId);
-    res.json({ data: events });
+    const feeds = db.prepare(`
+      SELECT id, name, url, color, enabled, last_fetched_at, last_error, created_at
+      FROM calendar_feeds
+      ORDER BY created_at ASC
+    `).all();
+    res.json({ data: feeds.map(f => ({ ...f, enabled: !!f.enabled })) });
   } catch (err) {
     res.status(500).json({ error: err.message, code: 'DB_ERROR' });
+  }
+});
+
+// POST /api/v1/calendar/feeds — add a new feed
+router.post('/feeds', async (req, res) => {
+  try {
+    const { name, url, color } = req.body;
+    if (!name || !url) {
+      return res.status(400).json({ error: 'name and url are required', code: 'MISSING_FIELDS' });
+    }
+    if (!/^https?:\/\//i.test(url) && !/^webcal:\/\//i.test(url)) {
+      return res.status(400).json({ error: 'url must start with http(s):// or webcal://', code: 'INVALID_URL' });
+    }
+    // Normalize webcal:// to https:// (same protocol)
+    const normalizedUrl = url.replace(/^webcal:\/\//i, 'https://');
+
+    const id = generateId();
+    db.prepare(`
+      INSERT INTO calendar_feeds (id, name, url, color)
+      VALUES (?, ?, ?, ?)
+    `).run(id, name.trim(), normalizedUrl, color || '#6366f1');
+
+    clearCache();
+
+    // Try an initial fetch — if it fails, we still save the feed, just with an error logged
+    const feed = db.prepare('SELECT * FROM calendar_feeds WHERE id = ?').get(id);
+    const result = await fetchFeed(feed, { forceRefresh: true });
+
+    res.status(201).json({
+      data: {
+        id: feed.id,
+        name: feed.name,
+        url: feed.url,
+        color: feed.color,
+        enabled: true,
+        last_fetched_at: feed.last_fetched_at,
+        last_error: feed.last_error,
+        events_fetched: result.events.length,
+        initial_fetch_error: result.error
+      }
+    });
+  } catch (err) {
+    console.error('[Add feed error]', err);
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// PATCH /api/v1/calendar/feeds/:id — update feed (name, color, enabled)
+router.patch('/feeds/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, color, enabled } = req.body;
+    const current = db.prepare('SELECT * FROM calendar_feeds WHERE id = ?').get(id);
+    if (!current) return res.status(404).json({ error: 'Feed not found', code: 'NOT_FOUND' });
+
+    db.prepare(`
+      UPDATE calendar_feeds
+      SET name = ?, color = ?, enabled = ?
+      WHERE id = ?
+    `).run(
+      name ?? current.name,
+      color ?? current.color,
+      enabled !== undefined ? (enabled ? 1 : 0) : current.enabled,
+      id
+    );
+    clearCache();
+    res.json({ data: db.prepare('SELECT * FROM calendar_feeds WHERE id = ?').get(id) });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// DELETE /api/v1/calendar/feeds/:id
+router.delete('/feeds/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = db.prepare('DELETE FROM calendar_feeds WHERE id = ?').run(id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Feed not found', code: 'NOT_FOUND' });
+    clearCache();
+    res.json({ data: { deleted: true } });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/calendar/feeds/:id/refresh — force refresh one feed
+router.post('/feeds/:id/refresh', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const feed = db.prepare('SELECT * FROM calendar_feeds WHERE id = ?').get(id);
+    if (!feed) return res.status(404).json({ error: 'Feed not found', code: 'NOT_FOUND' });
+    const result = await fetchFeed(feed, { forceRefresh: true });
+    res.json({ data: { events_fetched: result.events.length, error: result.error } });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// POST /api/v1/calendar/refresh — force refresh all feeds
+router.post('/refresh', async (req, res) => {
+  try {
+    const { events, errors } = await fetchAllFeeds({ forceRefresh: true });
+    res.json({ data: { events_count: events.length, errors } });
+  } catch (err) {
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// ── Events for a given day (merges calendar + tasks) ─────────────────────────
+
+// GET /api/v1/calendar/today?date=YYYY-MM-DD
+// Returns: {
+//   items: [...],       // merged timeline items
+//   events: [...],      // raw calendar events for that day
+//   tasks_due: [...],   // tasks due that day (no specific time)
+//   tasks_completed: [...]  // tasks completed that day
+// }
+router.get('/today', async (req, res) => {
+  try {
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    const dayStart = new Date(`${dateStr}T00:00:00`);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    // Calendar events (from all enabled feeds)
+    const { events: allEvents, errors } = await fetchAllFeeds();
+    const dayEvents = allEvents.filter(e => {
+      const start = new Date(e.start);
+      const end = e.end ? new Date(e.end) : null;
+      // Event overlaps this day if it starts before day ends AND ends after day starts
+      return start < dayEnd && (end ? end > dayStart : start >= dayStart);
+    });
+
+    // Tasks due this day (across all projects, excluding those in Completed columns)
+    const allTasks = taskService.getAllTasks();
+    const tasksDue = allTasks.filter(t => {
+      if (!t.due_date) return false;
+      // Skip tasks already moved to a Completed column
+      if (t.column_name === 'Completed') return false;
+      const d = new Date(t.due_date);
+      return d >= dayStart && d < dayEnd;
+    });
+
+    // Tasks completed this day — sitting in a Completed column with a due_date
+    // on this day OR moved to Completed today (using updated_at as the proxy for "moved today").
+    const tasksCompleted = allTasks.filter(t => {
+      if (t.column_name !== 'Completed') return false;
+      // Task was either due today OR moved to Completed today
+      const updatedAt = new Date(t.updated_at);
+      const movedToCompletedToday = updatedAt >= dayStart && updatedAt < dayEnd;
+      const dueToday = t.due_date && (() => {
+        const d = new Date(t.due_date);
+        return d >= dayStart && d < dayEnd;
+      })();
+      // Include if it was due today and is now complete, OR if it was moved to Completed today
+      // (covers "completed ahead of schedule" — task due later this week, finished early)
+      if (dueToday) return true;
+      if (movedToCompletedToday) return true;
+      return false;
+    });
+
+    // Build merged timeline: timed items first, sorted by start time
+    const timedItems = dayEvents.map(e => ({
+      kind: 'event',
+      id: e.id,
+      title: e.title,
+      start: e.start,
+      end: e.end,
+      allDay: e.allDay,
+      location: e.location,
+      description: e.description,
+      source: { feedId: e.feedId, feedName: e.feedName, feedColor: e.feedColor }
+    }));
+
+    // Tasks with a specific due time (due_date includes time)
+    const timedTasks = tasksDue
+      .filter(t => t.due_date && t.due_date.includes('T'))
+      .map(t => ({
+        kind: 'task',
+        id: t.id,
+        title: t.title,
+        start: t.due_date,
+        end: null,
+        allDay: false,
+        priority: t.priority,
+        columnId: t.column_id,
+        source: null
+      }));
+
+    const timeline = [...timedItems, ...timedTasks].sort(
+      (a, b) => new Date(a.start) - new Date(b.start)
+    );
+
+    res.json({
+      data: {
+        date: dateStr,
+        timeline,
+        tasks_untimed: tasksDue
+          .filter(t => !t.due_date || !t.due_date.includes('T'))
+          .map(t => ({
+            kind: 'task',
+            id: t.id,
+            title: t.title,
+            priority: t.priority,
+            columnId: t.column_id,
+            completed: !!t.completed
+          })),
+        tasks_completed: tasksCompleted.map(t => ({
+          kind: 'task',
+          id: t.id,
+          title: t.title,
+          completed_at: t.updated_at
+        })),
+        events_count: dayEvents.length,
+        fetch_errors: errors
+      }
+    });
+  } catch (err) {
+    console.error('[Today endpoint error]', err);
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }
 });
 

@@ -63,19 +63,15 @@ export const api = {
   // Auth (stubs)
   getAuthStatus: () => request('GET', '/auth/status'),
 
-  // Google Calendar (calendar router is mounted at /api/v1 in server/index.js)
-  googleAuthStatus: () => request('GET', '/auth/status'),
-  googleConnectUrl: () => `${BASE}/auth/google`,
-  googleDisconnect: () => request('DELETE', '/auth/google'),
-  listCalendars: () => request('GET', '/calendars'),
-  listAllEvents: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request('GET', `/calendar/events${qs ? '?' + qs : ''}`);
-  },
-  createCalendarEvent: (calendarId, data) => {
-    // Calendar IDs can contain @, so encode once for the URL and let server decode once.
-    return request('POST', `/calendars/${encodeURIComponent(calendarId)}/events`, data);
-  },
-  deleteCalendarEvent: (calendarId, eventId) => request('DELETE', `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`),
-  getTaskCalendarEvents: (taskId) => request('GET', `/tasks/${taskId}/calendar-events`)
+  // iCal Calendar Feeds
+  getCalendarFeeds: () => request('GET', '/calendar/feeds'),
+  addCalendarFeed: (data) => request('POST', '/calendar/feeds', data),
+  updateCalendarFeed: (id, data) => request('PATCH', `/calendar/feeds/${id}`, data),
+  deleteCalendarFeed: (id) => request('DELETE', `/calendar/feeds/${id}`),
+  refreshCalendarFeed: (id) => request('POST', `/calendar/feeds/${id}/refresh`),
+  refreshAllFeeds: () => request('POST', '/calendar/refresh'),
+  getTodayData: (date) => {
+    const qs = date ? `?date=${date}` : '';
+    return request('GET', `/calendar/today${qs}`);
+  }
 };

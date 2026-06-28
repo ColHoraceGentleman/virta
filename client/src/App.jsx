@@ -10,7 +10,7 @@ import TaskCreateModal from './components/TaskCreateModal.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import FilterBar, { applyFilters, loadFilters } from './components/FilterBar.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
-import CalendarSidebar from './components/CalendarSidebar.jsx';
+import CalendarSidebar from './components/TodaySidebar.jsx';
 
 const VIEWS = { BOARD: 'board', LIST: 'list' };
 
@@ -317,6 +317,11 @@ export default function App() {
           open={calendarOpen}
           onToggle={toggleCalendar}
           darkMode={dm}
+          onTaskClick={(taskId) => {
+            // Find task and open modal
+            const t = tasks.find(t => t.id === taskId);
+            if (t) setSelectedTask(t);
+          }}
         />
       </div>
 
@@ -339,7 +344,6 @@ export default function App() {
           columns={columns}
           categories={categories}
           defaultColumnId={createModalColumnId}
-          defaultAddToCalendar={!!currentProject?.default_add_to_calendar}
           onClose={() => setShowCreateModal(false)}
           darkMode={dm}
           onCreate={async (fields) => {
@@ -353,9 +357,7 @@ export default function App() {
                 dueDate: fields.dueDate,
                 priority: fields.priority,
                 assignees: fields.assignees,
-                categoryId: fields.categoryId,
-                addToCalendar: fields.addToCalendar || false,
-                calendarId: fields.calendarId || null
+                categoryId: fields.categoryId
               });
             } catch (err) {
               console.error('Failed to create task:', err);
