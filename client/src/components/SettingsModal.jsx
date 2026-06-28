@@ -287,18 +287,26 @@ export default function SettingsModal({
   });
   const [calList, setCalList] = useState([]);
 
+  const [calError, setCalError] = useState(null);
+
   // Load calendar auth status + calendar list on mount (and after connect/disconnect)
   async function loadCalStatus() {
+    setCalError(null);
     try {
       const s = await api.googleAuthStatus();
       setCalAuthStatus(s);
       if (s.connected) {
-        const cals = await api.listCalendars();
-        setCalList(cals);
+        try {
+          const cals = await api.listCalendars();
+          setCalList(cals);
+        } catch (calErr) {
+          setCalError(`Could not load calendar list: ${calErr.message}`);
+        }
       } else {
         setCalList([]);
       }
     } catch (err) {
+      setCalError(`Could not reach the Virta API: ${err.message}. Reload the page and try again.`);
       setCalAuthStatus({ credentialsFile: false, connected: false });
     }
   }
@@ -491,7 +499,16 @@ export default function SettingsModal({
               <p className={`text-xs ${subLabelCls}`}>Loading…</p>
             )}
 
-            {calAuthStatus && !calAuthStatus.credentialsFile && (
+            {calError && (
+              <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-md p-2 space-y-1">
+                <p>{calError}</p>
+                <button type="button" onClick={loadCalStatus} className="text-indigo-400 hover:underline">
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {calAuthStatus && !calAuthStatus.credentialsFile && !calError && (
               <p className="text-xs text-red-400">
                 google-credentials.json is missing from the project root. Add it to enable calendar integration.
               </p>
