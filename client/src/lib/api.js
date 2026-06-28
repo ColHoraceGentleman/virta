@@ -13,7 +13,10 @@ async function request(method, path, body) {
   if (!res.ok) {
     throw new Error(json.error || `HTTP ${res.status}`);
   }
-  return json.data;
+  // Some endpoints return the bare object (auth/status, health), most wrap in
+  // {data: ...}. Return whatever the server gave us, preferring .data when
+  // present. This keeps `request()` uniform while not breaking flat endpoints.
+  return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
 }
 
 export const api = {
