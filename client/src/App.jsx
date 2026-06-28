@@ -27,6 +27,10 @@ export default function App() {
     () => localStorage.getItem('calendar-sidebar-open') !== 'false'
   );
 
+  // Bumped when tasks change so the Today sidebar refetches its merged data.
+  // Set to a counter so re-renders always trigger the effect.
+  const [todayRefreshKey, setTodayRefreshKey] = useState(0);
+
   function toggleCalendar() {
     setCalendarOpen(v => {
       const next = !v;
@@ -52,6 +56,16 @@ export default function App() {
   // SSE event handler
   const onSSEEvent = useCallback((event) => {
     handleSSEEvent(event);
+    // Trigger Today sidebar refetch when task data changes (any task add/update/
+    // delete/move or completion-column move). Cheap: just bumps a counter.
+    if (event && (
+      event.type === 'task_created' ||
+      event.type === 'task_updated' ||
+      event.type === 'task_deleted' ||
+      event.type === 'task_moved'
+    )) {
+      setTodayRefreshKey(k => k + 1);
+    }
   }, [handleSSEEvent]);
 
   useSSE(onSSEEvent);
@@ -317,6 +331,7 @@ export default function App() {
           open={calendarOpen}
           onToggle={toggleCalendar}
           darkMode={dm}
+          refreshKey={todayRefreshKey}
           onTaskClick={(taskId) => {
             // Find task and open modal
             const t = tasks.find(t => t.id === taskId);

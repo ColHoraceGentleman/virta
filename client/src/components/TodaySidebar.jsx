@@ -132,7 +132,7 @@ function SectionLabel({ children, darkMode }) {
 
 // ── Main sidebar ─────────────────────────────────────────────────────────────
 
-export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick }) {
+export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, refreshKey = 0 }) {
   const [viewDate, setViewDate] = useState(() => startOfDay(new Date()));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -165,7 +165,7 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick }) 
 
   useEffect(() => {
     if (open) load(viewDate);
-  }, [open, viewDate, load]);
+  }, [open, viewDate, load, refreshKey]);
 
   // ── Auto-scroll to "now" when on today's view and data loads ──
   useEffect(() => {
