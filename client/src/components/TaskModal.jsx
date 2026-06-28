@@ -565,7 +565,7 @@ export default function TaskModal({ task, project, categories, onClose, onUpdate
           </div>
 
           {/* Subtasks */}
-          <SubtasksSection taskId={task.id} darkMode={dm} refreshKey={subtaskRefreshKey} />
+          <SubtasksSection taskId={task.id} darkMode={darkMode} refreshKey={subtaskRefreshKey} />
 
           <div className={`pt-2 border-t text-xs space-y-1 ${footerBorder}`}>
             <p>Created: {new Date(task.created_at).toLocaleString()}</p>
