@@ -140,8 +140,11 @@ router.get('/calendar/events', async (req, res) => {
     const { timeMin, timeMax, maxResults = 100 } = req.query;
     const calendar = google.calendar({ version: 'v3', auth });
 
-    const calList = await calendar.calendarList.list();
-    const calendars = (calList.data.items || []).filter(c => c.selected !== false);
+    const calList = await calendar.calendarList.list({
+      showHidden: false,
+      minAccessRole: 'freeBusyReader'
+    });
+    const calendars = (calList.data.items || []); // include all — filter is applied in the sidebar via calFilter
 
     const allEvents = [];
     for (const cal of calendars) {
@@ -188,12 +191,21 @@ router.get('/calendars', async (req, res) => {
     if (!auth) return res.status(401).json({ error: 'Not authorized', code: 'NOT_AUTHORIZED' });
 
     const calendar = google.calendar({ version: 'v3', auth });
-    const response = await calendar.calendarList.list();
+    // showHidden=true surfaces calendars the user has unchecked in the UI.
+    // minAccessRole=freeBusyReader returns calendars with any access level
+    // (including ones shared read-only with the user).
+    const response = await calendar.calendarList.list({
+      showHidden: true,
+      minAccessRole: 'freeBusyReader'
+    });
     const calendars = (response.data.items || []).map(c => ({
       id: c.id,
       name: c.summary,
       primary: c.primary || false,
-      color: c.backgroundColor
+      color: c.backgroundColor,
+      accessRole: c.accessRole,
+      selected: c.selected !== false,
+      hidden: c.hidden === true
     }));
 
     res.json({ data: calendars });
