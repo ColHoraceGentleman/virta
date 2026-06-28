@@ -2,6 +2,7 @@ import { Router } from 'express';
 import db, { generateId } from '../db.js';
 import { fetchFeed, fetchAllFeeds, clearCache } from '../services/icalService.js';
 import * as taskService from '../services/taskService.js';
+import { listSubtasks } from '../services/subtaskService.js';
 
 // Parse a date-only string (YYYY-MM-DD) as LOCAL midnight.
 // new Date('2026-06-27') is parsed as UTC midnight, which in non-UTC
@@ -12,6 +13,10 @@ function parseLocalDate(dateStr) {
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
   return new Date(dateStr);
 }
+
+// Priority weighting for sorting tasks on the Today sidebar.
+// Higher weight = appears first. Unknown priorities default to 0.
+const PRIORITY_WEIGHT = { urgent: 4, high: 3, medium: 2, low: 1 };
 
 const router = Router();
 
@@ -140,10 +145,11 @@ router.post('/refresh', async (req, res) => {
 
 // GET /api/v1/calendar/today?date=YYYY-MM-DD
 // Returns: {
-//   items: [...],       // merged timeline items
-//   events: [...],      // raw calendar events for that day
-//   tasks_due: [...],   // tasks due that day (no specific time)
-//   tasks_completed: [...]  // tasks completed that day
+//   data: {
+//     date, timeline, tasks_untimed, tasks_completed,
+//     subtasks_untimed, subtasks_completed,
+//     events_count, fetch_errors
+//   }
 // }
 router.get('/today', async (req, res) => {
   try {
@@ -189,6 +195,44 @@ router.get('/today', async (req, res) => {
       return false;
     });
 
+    // Subtasks due today (across all parent tasks, skipping completed parents
+    // and parent tasks already in a Completed column).
+    const subtasksDue = [];
+    const subtasksCompleted = [];
+    for (const t of allTasks) {
+      const subs = listSubtasks(t.id);
+      for (const s of subs) {
+        if (!s.due_date) continue;
+        const d = parseLocalDate(s.due_date);
+        if (d < dayStart || d >= dayEnd) continue;
+        const payload = {
+          kind: 'subtask',
+          id: s.id,
+          parent_task_id: t.id,
+          parent_title: t.title,
+          parent_column_id: t.column_id,
+          parent_column_name: t.column_name,
+          title: s.title,
+          priority: t.priority,
+          completed: !!s.completed,
+          completed_at: s.completed_at,
+          due_date: s.due_date
+        };
+        if (s.completed || t.column_name === 'Completed') {
+          subtasksCompleted.push(payload);
+        } else {
+          subtasksDue.push(payload);
+        }
+      }
+    }
+
+    // Sort untimed subtasks by the same priority/created_at rules as parent tasks
+    subtasksDue.sort((a, b) => {
+      const pw = (PRIORITY_WEIGHT[b.priority] || 0) - (PRIORITY_WEIGHT[a.priority] || 0);
+      if (pw !== 0) return pw;
+      return new Date(a.due_date || 0) - new Date(b.due_date || 0);
+    });
+
     // Build merged timeline: timed items first, sorted by start time
     const timedItems = dayEvents.map(e => ({
       kind: 'event',
@@ -225,8 +269,15 @@ router.get('/today', async (req, res) => {
       data: {
         date: dateStr,
         timeline,
+        // Sort untimed tasks: priority desc (urgent first), then created_at asc
+        // (oldest first — "this has been hanging around longest gets attention").
         tasks_untimed: tasksDue
           .filter(t => !t.due_date || !t.due_date.includes('T'))
+          .sort((a, b) => {
+            const pw = (PRIORITY_WEIGHT[b.priority] || 0) - (PRIORITY_WEIGHT[a.priority] || 0);
+            if (pw !== 0) return pw;
+            return new Date(a.created_at) - new Date(b.created_at);
+          })
           .map(t => ({
             kind: 'task',
             id: t.id,
@@ -240,6 +291,24 @@ router.get('/today', async (req, res) => {
           id: t.id,
           title: t.title,
           completed_at: t.updated_at
+        })),
+        // Subtasks due today, sorted by priority/created_at, deduped to "first row per subtask"
+        subtasks_untimed: subtasksDue.map(s => ({
+          kind: 'subtask',
+          id: s.id,
+          parent_task_id: s.parent_task_id,
+          parent_title: s.parent_title,
+          title: s.title,
+          priority: s.priority,
+          completed: s.completed
+        })),
+        subtasks_completed: subtasksCompleted.map(s => ({
+          kind: 'subtask',
+          id: s.id,
+          parent_task_id: s.parent_task_id,
+          parent_title: s.parent_title,
+          title: s.title,
+          completed_at: s.completed_at
         })),
         events_count: dayEvents.length,
         fetch_errors: errors

@@ -10,7 +10,7 @@ export function getProjectById(id) {
 
 export function createProject({ name, description, color, darkMode, defaultAddToCalendar }) {
   const id = generateId();
-  const DEFAULT_COLUMNS = ['Backlog', 'Prioritized', 'Active', 'On Hold', 'Completed'];
+  const DEFAULT_COLUMNS = ['Backlog', 'Prioritized', 'Active', 'Completed'];
 
   const createProjectTx = db.transaction(() => {
     db.prepare(

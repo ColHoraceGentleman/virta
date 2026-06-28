@@ -161,10 +161,30 @@ safeExec(`
   )
 `);
 
+// Subtasks table — first-class children of tasks. v6.
+// Idempotent: safe on every server boot. NO recurring / parent_subtask_id yet,
+// but the schema leaves room (a subtask is just a row keyed by task_id).
+safeExec(`
+  CREATE TABLE IF NOT EXISTS subtasks (
+    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    title        TEXT NOT NULL,
+    description  TEXT,
+    due_date     TEXT,
+    completed    INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT,
+    position     REAL NOT NULL DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now'))
+  )
+`);
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_columns_project_id ON columns(project_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_subtasks_due_date ON subtasks(due_date)');
 
 // Add new columns to tasks — use try/catch per column since SQLite doesn't support IF NOT EXISTS for ALTER
 const taskCols = db.prepare('PRAGMA table_info(tasks)').all().map(c => c.name);
@@ -231,7 +251,7 @@ if (projectCount.count === 0) {
   const insertColumn = db.prepare(
     'INSERT INTO columns (id, project_id, name, position) VALUES (?, ?, ?, ?)'
   );
-  const defaultColumns = ['Backlog', 'Prioritized', 'Active', 'On Hold', 'Completed'];
+  const defaultColumns = ['Backlog', 'Prioritized', 'Active', 'Completed'];
   defaultColumns.forEach((name, index) => {
     insertColumn.run(generateId(), projectId, name, index);
   });

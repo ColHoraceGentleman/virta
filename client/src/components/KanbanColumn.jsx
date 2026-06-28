@@ -62,11 +62,10 @@ export default function KanbanColumn({ column, onTaskClick, onOpenCreateModal, o
             className={`text-sm font-semibold cursor-pointer ${titleColor}`}
             onClick={() => setIsEditingName(true)}
           >
-            {column.name}
+            {column.name} <span className={`text-xs font-normal ${countColor}`}>({taskCount})</span>
           </h3>
         )}
         <div className="flex items-center gap-1.5">
-          <span className={`text-xs font-medium ${countColor}`}>{taskCount}</span>
           <button
             onClick={() => onOpenCreateModal(column.id)}
             className={`text-lg leading-none transition-colors ${addBtnColor}`}

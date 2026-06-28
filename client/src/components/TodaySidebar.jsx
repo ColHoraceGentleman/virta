@@ -257,7 +257,8 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, re
   // ── Counts for the badge ──
   const upcomingCount = decoratedTimeline.filter(i => i._status === 'future').length;
   const untimedCount = data?.tasks_untimed?.filter(t => !t.completed).length || 0;
-  const badgeCount = upcomingCount + untimedCount;
+  const subtasksUntimedCount = data?.subtasks_untimed?.filter(s => !s.completed).length || 0;
+  const badgeCount = upcomingCount + untimedCount + subtasksUntimedCount;
 
   // ── Navigation ──
   const goNext = () => setViewDate(d => addDays(d, 1));
@@ -326,7 +327,7 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, re
         {data && (
           <>
             {/* Timeline — timed events + timed tasks */}
-            {decoratedTimeline.length === 0 && data.tasks_untimed.length === 0 && (
+            {decoratedTimeline.length === 0 && data.tasks_untimed.length === 0 && (data.subtasks_untimed?.length || 0) === 0 && (
               <p className={`px-3 py-8 text-xs ${muted} text-center italic`}>
                 Nothing scheduled for this day.
               </p>
@@ -375,6 +376,27 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, re
               </>
             )}
 
+            {/* Subtasks Due Today (untimed) — separate items, "(under [parent])" hint */}
+            {data.subtasks_untimed?.length > 0 && (
+              <>
+                <SectionLabel darkMode={darkMode}>Subtasks Due Today</SectionLabel>
+                {data.subtasks_untimed.map(sub => (
+                  <Row
+                    key={`sub-${sub.id}`}
+                    item={{
+                      kind: 'subtask',
+                      id: `subtask-${sub.id}`,
+                      title: `${sub.title}  (under ${sub.parent_title})`,
+                      source: null
+                    }}
+                    status={sub.completed ? 'completed' : 'future'}
+                    darkMode={darkMode}
+                    onClick={() => onTaskClick?.(sub.parent_task_id)}
+                  />
+                ))}
+              </>
+            )}
+
             {/* Completed today */}
             {data.tasks_completed.length > 0 && (
               <>
@@ -394,6 +416,26 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, re
                   />
                 ))}
               </>
+            )}
+
+            {/* Completed subtasks today */}
+            {data.subtasks_completed?.length > 0 && (
+              <div className="pl-4">
+                {data.subtasks_completed.map(sub => (
+                  <Row
+                    key={`subdone-${sub.id}`}
+                    item={{
+                      kind: 'subtask',
+                      id: `subtaskdone-${sub.id}`,
+                      title: `${sub.title}  (under ${sub.parent_title})`,
+                      source: null
+                    }}
+                    status="completed"
+                    darkMode={darkMode}
+                    onClick={() => onTaskClick?.(sub.parent_task_id)}
+                  />
+                ))}
+              </div>
             )}
           </>
         )}

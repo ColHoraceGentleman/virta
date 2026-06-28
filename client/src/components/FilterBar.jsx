@@ -13,8 +13,15 @@ const PRIORITY_LABELS  = { low: 'Low', medium: 'Medium', high: 'High', urgent: '
 const STORAGE_KEY = 'task-filters';
 
 function loadFilters() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-  catch { return {}; }
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    // Backfill the new hideCompleted default for users who haven't seen it yet.
+    // Most users want this on, so default true unless they've explicitly set it.
+    if (stored.hideCompleted === undefined) stored.hideCompleted = true;
+    return stored;
+  } catch {
+    return { hideCompleted: true };
+  }
 }
 function saveFilters(filters) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
@@ -108,6 +115,20 @@ export default function FilterBar({ categories, filters, onChange, darkMode }) {
         </div>
       )}
 
+      {/* Display */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`text-xs font-medium ${labelColor}`}>Display:</span>
+        <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${filterBase} px-2 py-1 rounded-full transition-colors`}>
+          <input
+            type="checkbox"
+            checked={localFilters.hideCompleted !== false}
+            onChange={e => setFilter('hideCompleted', e.target.checked)}
+            className="rounded"
+          />
+          Hide completed older than 30 days
+        </label>
+      </div>
+
       {activeCount > 0 && (
         <button onClick={clearAll} className={`text-xs underline ${clearColor}`}>
           Clear all filters
@@ -120,6 +141,14 @@ export default function FilterBar({ categories, filters, onChange, darkMode }) {
 export function applyFilters(tasks, filters) {
   if (!filters || Object.keys(filters).length === 0) return tasks;
   return tasks.filter(task => {
+    // hideCompleted: when true (the default), hide tasks in the Completed column
+    // whose updated_at is older than 30 days. Other columns aren't affected by
+    // "completed" status (they're typically movable states, not done).
+    if (filters.hideCompleted !== false && task.column_name === 'Completed' && task.updated_at) {
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const updated = new Date(task.updated_at).getTime();
+      if (!isNaN(updated) && updated < cutoff) return false;
+    }
     if (filters.dueDate && filters.dueDate !== 'none') {
       const now   = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

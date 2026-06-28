@@ -129,9 +129,9 @@ export default function Toolbar({ view, onViewChange, projects, currentProject, 
         <button
           onClick={onOpenCommandPalette}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${darkMode ? 'text-slate-400 hover:text-slate-200 bg-slate-700/50 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200'}`}
-          title="Command palette (⌘K)"
+          title="Search & commands (⌘K)"
         >
-          ⌘K
+          🔍
         </button>
 
         <button

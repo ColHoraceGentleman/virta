@@ -12,6 +12,7 @@ import eventsRouter from './routes/events.js';
 import gmailRouter from './routes/gmail.js';
 import categoriesRouter from './routes/categories.js';
 import attachmentsRouter from './routes/attachments.js';
+import subtasksRouter from './routes/subtasks.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -37,6 +38,10 @@ app.use('/api/v1/events', eventsRouter);
 app.use('/api/v1/gmail', gmailRouter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/attachments', attachmentsRouter);
+
+// Subtasks router carries both /tasks/:taskId/subtasks and /subtasks/:id paths
+// (each route is declared in full inside the router), so mount at root.
+app.use('/api/v1', subtasksRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

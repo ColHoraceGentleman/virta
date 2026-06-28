@@ -48,6 +48,13 @@ export const api = {
   addNote: (taskId, data) => request('POST', `/tasks/${taskId}/notes`, data),
   deleteNote: (id) => request('DELETE', `/notes/${id}`),
 
+  // Subtasks
+  getSubtasks: (taskId) => request('GET', `/tasks/${taskId}/subtasks`),
+  createSubtask: (taskId, data) => request('POST', `/tasks/${taskId}/subtasks`, data),
+  reorderSubtasks: (taskId, ids) => request('POST', `/tasks/${taskId}/subtasks/reorder`, { ids }),
+  updateSubtask: (id, data) => request('PATCH', `/subtasks/${id}`, data),
+  deleteSubtask: (id) => request('DELETE', `/subtasks/${id}`),
+
   // Categories
   getCategories: (projectId) => request('GET', `/categories${projectId ? `?projectId=${projectId}` : ''}`),
   createCategory: (data) => request('POST', '/categories', data),
