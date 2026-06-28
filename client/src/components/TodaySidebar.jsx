@@ -70,6 +70,10 @@ function Row({ item, status, darkMode, onClick }) {
     ? (item.kind === 'task' ? '✓' : '✓')
     : timeLabel;
 
+  // Hide the time column entirely when there's nothing to show — otherwise it
+  // takes 48px of empty space and visually pushes the title off the left edge.
+  const showTimeColumn = !!completedTimeLabel;
+
   const barColor = status === 'completed'
     ? '#16a34a'
     : (item.source?.feedColor || (item.kind === 'task' ? '#6366f1' : '#6366f1'));
@@ -84,7 +88,8 @@ function Row({ item, status, darkMode, onClick }) {
       data-row-status={status}
       onClick={onClick}
       className={[
-        'flex items-stretch gap-2 px-3 py-2 border-l-2 border-transparent cursor-pointer transition-colors text-left',
+        'flex items-stretch gap-2 py-2 border-l-2 border-transparent cursor-pointer transition-colors text-left',
+        showTimeColumn ? 'px-3' : 'pl-2 pr-3',
         baseBg,
         isPast ? pastBg : '',
         isActive ? activeBg + ' ' + activeBorder : '',
@@ -97,9 +102,11 @@ function Row({ item, status, darkMode, onClick }) {
         className="w-1 self-stretch rounded-full flex-shrink-0"
         style={{ backgroundColor: barColor, minHeight: 18 }}
       />
-      <div className={`text-[11px] w-12 flex-shrink-0 font-variant-numeric flex items-center ${isCompleted ? completedColor : timeColor}`}>
-        {completedTimeLabel}
-      </div>
+      {showTimeColumn && (
+        <div className={`text-[11px] w-12 flex-shrink-0 font-variant-numeric flex items-center ${isCompleted ? completedColor : timeColor}`}>
+          {completedTimeLabel}
+        </div>
+      )}
       <div className="flex-1 min-w-0 flex items-center">
         <div className="min-w-0 flex-1">
           <p className={`text-[13px] truncate text-left ${
