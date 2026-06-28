@@ -84,7 +84,7 @@ function Row({ item, status, darkMode, onClick }) {
       data-row-status={status}
       onClick={onClick}
       className={[
-        'flex items-center gap-2 px-3 py-2 border-l-2 border-transparent cursor-pointer transition-colors',
+        'flex items-stretch gap-2 px-3 py-2 border-l-2 border-transparent cursor-pointer transition-colors text-left',
         baseBg,
         isPast ? pastBg : '',
         isActive ? activeBg + ' ' + activeBorder : '',
@@ -97,24 +97,26 @@ function Row({ item, status, darkMode, onClick }) {
         className="w-1 self-stretch rounded-full flex-shrink-0"
         style={{ backgroundColor: barColor, minHeight: 18 }}
       />
-      <div className={`text-[11px] w-12 flex-shrink-0 font-variant-numeric ${isCompleted ? completedColor : timeColor}`}>
+      <div className={`text-[11px] w-12 flex-shrink-0 font-variant-numeric flex items-center ${isCompleted ? completedColor : timeColor}`}>
         {completedTimeLabel}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-[13px] truncate ${
-          isCompleted
-            ? completedColor
-            : isPast
-              ? `${pastColor} line-through`
-              : textColor
-        }`}>
-          {item.title}
-        </p>
-        {item.source?.feedName && (
-          <p className={`text-[10px] mt-0.5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-            {item.source.feedName}
+      <div className="flex-1 min-w-0 flex items-center">
+        <div className="min-w-0 flex-1">
+          <p className={`text-[13px] truncate text-left ${
+            isCompleted
+              ? completedColor
+              : isPast
+                ? `${pastColor} line-through`
+                : textColor
+          }`}>
+            {item.title}
           </p>
-        )}
+          {item.source?.feedName && (
+            <p className={`text-[10px] mt-0.5 text-left ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+              {item.source.feedName}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
