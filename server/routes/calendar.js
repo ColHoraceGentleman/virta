@@ -3,6 +3,16 @@ import db, { generateId } from '../db.js';
 import { fetchFeed, fetchAllFeeds, clearCache } from '../services/icalService.js';
 import * as taskService from '../services/taskService.js';
 
+// Parse a date-only string (YYYY-MM-DD) as LOCAL midnight.
+// new Date('2026-06-27') is parsed as UTC midnight, which in non-UTC
+// timezones is a different calendar day. For due-date semantics we want local.
+function parseLocalDate(dateStr) {
+  if (!dateStr) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  return new Date(dateStr);
+}
+
 const router = Router();
 
 // ── Feed CRUD ────────────────────────────────────────────────────────────────
@@ -157,7 +167,7 @@ router.get('/today', async (req, res) => {
       if (!t.due_date) return false;
       // Skip tasks already moved to a Completed column
       if (t.column_name === 'Completed') return false;
-      const d = new Date(t.due_date);
+      const d = parseLocalDate(t.due_date);
       return d >= dayStart && d < dayEnd;
     });
 
@@ -169,7 +179,7 @@ router.get('/today', async (req, res) => {
       const updatedAt = new Date(t.updated_at);
       const movedToCompletedToday = updatedAt >= dayStart && updatedAt < dayEnd;
       const dueToday = t.due_date && (() => {
-        const d = new Date(t.due_date);
+        const d = parseLocalDate(t.due_date);
         return d >= dayStart && d < dayEnd;
       })();
       // Include if it was due today and is now complete, OR if it was moved to Completed today

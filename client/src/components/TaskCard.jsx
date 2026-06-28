@@ -40,10 +40,19 @@ export default function TaskCard({ task, onClick, isDragging, categories, darkMo
 
   const style = { transform: CSS.Transform.toString(transform), transition };
 
-  const isOverdue  = task.due_date && new Date(task.due_date) < new Date();
-  const isDueToday = task.due_date && new Date(task.due_date).toDateString() === new Date().toDateString();
+  // Parse date-only strings (YYYY-MM-DD) as local midnight, NOT UTC midnight.
+  // new Date('2026-06-27') is 2026-06-27T00:00:00Z which in Denver is 6pm
+  // the previous day — wrong for a "due date" semantically.
+  function parseLocalDate(dateStr) {
+    if (!dateStr) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    return new Date(dateStr);
+  }
+  const isOverdue  = task.due_date && parseLocalDate(task.due_date) < new Date() && task.due_date.split('T')[0] !== new Date().toISOString().split('T')[0];
+  const isDueToday = task.due_date && parseLocalDate(task.due_date).toDateString() === new Date().toDateString();
   const formattedDate = task.due_date
-    ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    ? parseLocalDate(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null;
 
   const category = categories?.find(c => c.id === task.category_id);
