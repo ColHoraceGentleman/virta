@@ -1,4 +1,4 @@
-// Virta Books — Phase A (Foundation) API client
+// Virta Books — Phase A + B API client
 // Thin wrapper around fetch() matching the api.js pattern in the parent app.
 
 const BASE = '/api/v1/books';
@@ -21,6 +21,8 @@ async function request(method, path, body) {
     err.status = res.status;
     err.dependents = json.dependents;
     err.invoice_count = json.invoice_count;
+    err.payments_count = json.payments_count;
+    err.response_data = json.data; // some endpoints (e.g. /test-smtp) put their structured info in `data`
     throw err;
   }
   return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
@@ -42,6 +44,28 @@ export const booksApi = {
   createCustomer: (data) => request('POST', '/customers', data),
   updateCustomer: (id, data) => request('PATCH', `/customers/${id}`, data),
   deleteCustomer: (id) => request('DELETE', `/customers/${id}`),
+
+  // Invoices
+  listInvoices: (status) => request('GET', `/invoices${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  getInvoice: (id) => request('GET', `/invoices/${id}`),
+  createInvoice: (data) => request('POST', '/invoices', data),
+  updateInvoice: (id, data) => request('PATCH', `/invoices/${id}`, data),
+  deleteInvoice: (id) => request('DELETE', `/invoices/${id}`),
+  voidInvoice: (id) => request('POST', `/invoices/${id}/void`),
+  sendInvoice: (id) => request('POST', `/invoices/${id}/send`),
+  applyCustomerTerms: (id) => request('POST', `/invoices/${id}/customer-terms`),
+  invoicePdfUrl: (id) => `${BASE}/invoices/${id}/pdf`,
+
+  // Payments
+  listPayments: (invoiceId) => request('GET', `/payments${invoiceId ? `?invoice_id=${encodeURIComponent(invoiceId)}` : ''}`),
+  createPayment: (data) => request('POST', '/payments', data),
+  updatePayment: (id, data) => request('PATCH', `/payments/${id}`, data),
+  deletePayment: (id) => request('DELETE', `/payments/${id}`),
+
+  // Settings — Invoices
+  getInvoiceSettings: () => request('GET', '/settings/invoices'),
+  updateInvoiceSettings: (data) => request('PATCH', '/settings/invoices', data),
+  testSmtp: () => request('POST', '/settings/invoices/test-smtp'),
 
   // Health (used by dashboard counts)
   health: () => request('GET', '/health'),

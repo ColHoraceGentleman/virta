@@ -74,6 +74,12 @@ export default function ChartOfAccounts({ navigate }) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => navigate('/books/settings/invoices')}
+            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg text-sm"
+          >
+            🧾 Invoice settings
+          </button>
+          <button
             onClick={() => navigate('/books/settings/accounts/merge')}
             className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg text-sm"
           >

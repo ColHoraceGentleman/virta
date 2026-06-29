@@ -5,6 +5,11 @@ import CustomerForm from './CustomerForm.jsx';
 import ChartOfAccounts from './ChartOfAccounts.jsx';
 import AccountForm from './AccountForm.jsx';
 import MergeAccounts from './MergeAccounts.jsx';
+import InvoicesList from './InvoicesList.jsx';
+import InvoiceForm from './InvoiceForm.jsx';
+import InvoiceView from './InvoiceView.jsx';
+import PaymentsIn from './PaymentsIn.jsx';
+import SettingsInvoices from './SettingsInvoices.jsx';
 import { booksApi } from './api.js';
 
 // Tiny client-side router. Reads window.location.pathname, listens to popstate.
@@ -59,11 +64,13 @@ function BooksNav({ path, navigate }) {
         </button>
         <div className="w-px h-5 bg-slate-700" />
         {link('/books',          'Dashboard', '📊')}
+        {link('/books/invoices', 'Invoices',  '🧾')}
+        {link('/books/payments', 'Payments',  '💵')}
         {link('/books/customers', 'Customers', '👥')}
         {link('/books/settings/accounts',  'Settings', '⚙️')}
       </div>
       <div className="text-xs text-slate-400">
-        <span className="opacity-60">Phase A · Foundation</span>
+        <span className="opacity-60">Phase B · Invoicing</span>
       </div>
     </div>
   );
@@ -83,6 +90,18 @@ export default function BooksShell() {
   let page;
   if (path === '/books/dashboard' || path === '/books/dashboard/') {
     page = <Dashboard navigate={navigate} />;
+  } else if (path === '/books/invoices' || path === '/books/invoices/') {
+    page = <InvoicesList navigate={navigate} />;
+  } else if (path === '/books/invoices/new') {
+    page = <InvoiceForm navigate={navigate} />;
+  } else if (path === '/books/payments' || path === '/books/payments/') {
+    page = <PaymentsIn navigate={navigate} />;
+  } else if (path.startsWith('/books/invoices/') && path.endsWith('/edit')) {
+    const id = path.split('/')[3];
+    page = <InvoiceForm navigate={navigate} invoiceId={id} />;
+  } else if (path.startsWith('/books/invoices/')) {
+    const id = path.split('/')[3];
+    page = <InvoiceView navigate={navigate} invoiceId={id} />;
   } else if (path === '/books/customers') {
     page = <CustomersList navigate={navigate} />;
   } else if (path === '/books/customers/new') {
@@ -99,6 +118,8 @@ export default function BooksShell() {
     page = <AccountForm navigate={navigate} accountId={id} />;
   } else if (path === '/books/settings/accounts/merge') {
     page = <MergeAccounts navigate={navigate} />;
+  } else if (path === '/books/settings/invoices') {
+    page = <SettingsInvoices navigate={navigate} />;
   } else {
     page = (
       <div className="p-8 text-slate-300">

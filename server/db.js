@@ -183,11 +183,6 @@ safeExec(`
 // Virta Books — Phase A (Foundation)
 // Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
 // Schema mirrors ACCOUNTING-v1.md §1 (accounts) and §2 (customers).
-// All future tables (invoices, line_items, payments, transactions, vendor_rules,
-// journal_entries, journal_lines, assets) intentionally NOT created here —
-// Phase B–F will add them in their own migrations. Foreign keys from
-// journal_lines/journal_entries reference accounts (id), so accounts MUST
-// exist before those tables land.
 // =====================================================================
 
 // Chart of accounts
@@ -232,6 +227,98 @@ safeExec(`
 `);
 safeExec('CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
+
+// =====================================================================
+// Virta Books — Phase B (Invoicing)
+// Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
+// Schema mirrors ACCOUNTING-v1.md §3: invoices, line_items, payments.
+// All CREATE TABLE / CREATE INDEX statements are idempotent.
+// =====================================================================
+
+// Invoices — see ACCOUNTING-v1.md §3
+safeExec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    customer_id  TEXT NOT NULL REFERENCES customers(id),
+    number       TEXT NOT NULL UNIQUE,
+    issue_date   TEXT NOT NULL,
+    due_date     TEXT NOT NULL,
+    payment_terms TEXT NOT NULL DEFAULT 'Net 30',
+    status       TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','paid','overdue','void')),
+    subtotal     REAL NOT NULL DEFAULT 0,
+    tax          REAL NOT NULL DEFAULT 0,
+    total        REAL NOT NULL DEFAULT 0,
+    notes        TEXT,
+    sent_at      TEXT,
+    paid_at      TEXT,
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_status   ON invoices(status)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)');
+
+// Line items — see ACCOUNTING-v1.md §3
+safeExec(`
+  CREATE TABLE IF NOT EXISTS line_items (
+    id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    invoice_id  TEXT NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+    position    REAL NOT NULL DEFAULT 0,
+    description TEXT NOT NULL,
+    quantity    REAL NOT NULL,
+    unit_price  REAL NOT NULL,
+    amount      REAL NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_line_items_invoice ON line_items(invoice_id)');
+
+// Payments — see ACCOUNTING-v1.md §3
+safeExec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    invoice_id  TEXT NOT NULL REFERENCES invoices(id),
+    paid_on     TEXT NOT NULL,
+    method      TEXT,
+    amount      REAL NOT NULL,
+    reference   TEXT,
+    notes       TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id)');
+
+// Settings — single-row table (id = 1). Captures invoicing settings:
+// auto-mark-overdue toggle, overdue notification message, business identity,
+// and SMTP config (host/port/user/from_email — NOT password; password lives
+// in macOS Keychain via security find-generic-password).
+// Idempotent: idempotent CREATE TABLE.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS settings_invoices (
+    id                       INTEGER PRIMARY KEY CHECK (id = 1),
+    auto_mark_overdue        INTEGER NOT NULL DEFAULT 0,
+    overdue_message          TEXT,
+    business_name            TEXT,
+    business_email           TEXT,
+    social_handle            TEXT,
+    smtp_host                TEXT,
+    smtp_port                INTEGER,
+    smtp_user                TEXT,
+    smtp_from_email          TEXT,
+    smtp_keychain_service    TEXT DEFAULT 'com.virta.books.smtp',
+    updated_at               TEXT DEFAULT (datetime('now'))
+  )
+`);
+// Seed the single settings row if it doesn't exist.
+{
+  const settingsExists = db.prepare('SELECT COUNT(*) as c FROM settings_invoices WHERE id = 1').get().c;
+  if (settingsExists === 0) {
+    db.prepare(`
+      INSERT INTO settings_invoices (id) VALUES (1)
+    `).run();
+  }
+}
 
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
