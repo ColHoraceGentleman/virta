@@ -45,7 +45,7 @@
 - `client/src/components/KanbanColumn.jsx`
   - Header: count moved inline into `<h3>` as `(N)` parens after column name
   - Removed duplicate `+` button from header (kept the `+` at right of header)
-  - Bottom "+ Add task" button unchanged
+  - Bottom "+ Add task" button **removed entirely** per Patrick's spec correction (commit `7123c0a`). Original interpretation was to keep it; Patrick wanted it gone.
 - `client/src/components/TaskModal.jsx`
   - Added `SubtaskRow` and `SubtasksSection` sub-components
   - Imported dnd-kit primitives (`DndContext`, `SortableContext`, `useSortable`, `arrayMove`, `CSS`)

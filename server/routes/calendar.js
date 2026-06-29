@@ -226,7 +226,10 @@ router.get('/today', async (req, res) => {
       }
     }
 
-    // Sort untimed subtasks by the same priority/created_at rules as parent tasks
+    // Sort untimed subtasks by priority desc, then due_date asc (overdue-first).
+    // NOTE: differs from parent tasks (which use created_at asc). Intentional:
+    // overdue subtasks are more actionable than stale subtasks, so we surface
+    // them first within a priority bucket. Documented for future-Rusty.
     subtasksDue.sort((a, b) => {
       const pw = (PRIORITY_WEIGHT[b.priority] || 0) - (PRIORITY_WEIGHT[a.priority] || 0);
       if (pw !== 0) return pw;
