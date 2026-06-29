@@ -13,6 +13,9 @@ import gmailRouter from './routes/gmail.js';
 import categoriesRouter from './routes/categories.js';
 import attachmentsRouter from './routes/attachments.js';
 import subtasksRouter from './routes/subtasks.js';
+import booksAccountsRouter from './routes/books/accounts.js';
+import booksCustomersRouter from './routes/books/customers.js';
+import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -42,6 +45,25 @@ app.use('/api/v1/attachments', attachmentsRouter);
 // Subtasks router carries both /tasks/:taskId/subtasks and /subtasks/:id paths
 // (each route is declared in full inside the router), so mount at root.
 app.use('/api/v1', subtasksRouter);
+
+// Virta Books — Phase A (Foundation): accounts + customers
+// Mounted at /api/v1/books/* so future phases (invoices, transactions, etc.)
+// can land alongside without colliding with task-manager routes.
+app.use('/api/v1/books/accounts', booksAccountsRouter);
+app.use('/api/v1/books/customers', booksCustomersRouter);
+
+// Health check for books
+app.get('/api/v1/books/health', (req, res) => {
+  const accountCount = db.prepare('SELECT COUNT(*) as c FROM accounts').get().c;
+  const customerCount = db.prepare('SELECT COUNT(*) as c FROM customers').get().c;
+  res.json({
+    status: 'ok',
+    phase: 'A',
+    accounts: accountCount,
+    customers: customerCount,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -179,6 +179,60 @@ safeExec(`
   )
 `);
 
+// =====================================================================
+// Virta Books — Phase A (Foundation)
+// Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
+// Schema mirrors ACCOUNTING-v1.md §1 (accounts) and §2 (customers).
+// All future tables (invoices, line_items, payments, transactions, vendor_rules,
+// journal_entries, journal_lines, assets) intentionally NOT created here —
+// Phase B–F will add them in their own migrations. Foreign keys from
+// journal_lines/journal_entries reference accounts (id), so accounts MUST
+// exist before those tables land.
+// =====================================================================
+
+// Chart of accounts
+safeExec(`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    code          TEXT NOT NULL UNIQUE,
+    name          TEXT NOT NULL,
+    account_type  TEXT NOT NULL CHECK (account_type IN ('income','expense','asset','liability','equity')),
+    irs_line      TEXT,
+    parent_id     TEXT REFERENCES accounts(id),
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    is_system     INTEGER NOT NULL DEFAULT 0,
+    position      REAL NOT NULL DEFAULT 0,
+    created_at    TEXT DEFAULT (datetime('now')),
+    updated_at    TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_accounts_code ON accounts(code)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(account_type)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_accounts_parent ON accounts(parent_id)');
+
+// Customers
+safeExec(`
+  CREATE TABLE IF NOT EXISTS customers (
+    id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    name            TEXT NOT NULL,
+    company         TEXT,
+    email           TEXT,
+    address_line1   TEXT,
+    address_line2   TEXT,
+    city            TEXT,
+    state           TEXT,
+    postal          TEXT,
+    country         TEXT,
+    payment_terms   TEXT DEFAULT 'Net 30',
+    notes           TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now')),
+    updated_at      TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
@@ -255,6 +309,64 @@ if (projectCount.count === 0) {
   defaultColumns.forEach((name, index) => {
     insertColumn.run(generateId(), projectId, name, index);
   });
+}
+
+// =====================================================================
+// Seed chart of accounts on first boot — Phase A.
+// Only seeds if `accounts` table is empty. Exact 32 accounts from
+// ACCOUNTING-v1.md §1. Position is used for stable ordering in the UI.
+// Idempotent on every boot.
+// =====================================================================
+const accountCount = db.prepare('SELECT COUNT(*) as count FROM accounts').get();
+if (accountCount.count === 0) {
+  console.log('[Books] Seeding 32 chart of accounts');
+  const SEED_ACCOUNTS = [
+    // Income (4)
+    { code: '4000', name: 'Wholesale Sales',          account_type: 'income',    irs_line: 'Part I Gross receipts' },
+    { code: '4010', name: 'Etsy Sales',               account_type: 'income',    irs_line: 'Part I Gross receipts' },
+    { code: '4020', name: 'Pattern/License Sales',    account_type: 'income',    irs_line: 'Part I Gross receipts' },
+    { code: '4900', name: 'Other Income',             account_type: 'income',    irs_line: 'Part I Other income' },
+    // Operating Expenses (16)
+    { code: '6000', name: 'Advertising & Marketing',  account_type: 'expense',   irs_line: 'Line 8' },
+    { code: '6010', name: 'Software Subscriptions',   account_type: 'expense',   irs_line: 'Line 18 or Line 27a' },
+    { code: '6020', name: 'Website & Hosting',        account_type: 'expense',   irs_line: 'Line 18' },
+    { code: '6100', name: 'Office Supplies',          account_type: 'expense',   irs_line: 'Line 18' },
+    { code: '6200', name: 'Shipping & Postage',       account_type: 'expense',   irs_line: 'Line 18' },
+    { code: '6210', name: 'Merchant Fees',            account_type: 'expense',   irs_line: 'Line 18' },
+    { code: '6300', name: 'Rent / Studio',            account_type: 'expense',   irs_line: 'Line 20' },
+    { code: '6400', name: 'Utilities',                account_type: 'expense',   irs_line: 'Line 25 (Utilities)' },
+    { code: '6410', name: 'Phone & Internet',         account_type: 'expense',   irs_line: 'Line 25' },
+    { code: '6500', name: 'Insurance',                account_type: 'expense',   irs_line: 'Line 15' },
+    { code: '6510', name: 'Professional Fees',        account_type: 'expense',   irs_line: 'Line 17' },
+    { code: '6600', name: 'Travel',                   account_type: 'expense',   irs_line: 'Line 24a' },
+    { code: '6610', name: 'Meals',                    account_type: 'expense',   irs_line: 'Line 24b' },
+    { code: '6700', name: 'Education & Training',     account_type: 'expense',   irs_line: 'Line 27a' },
+    { code: '6800', name: 'Home Office',              account_type: 'expense',   irs_line: 'Line 30' },
+    { code: '6900', name: 'Other Expenses',           account_type: 'expense',   irs_line: 'Line 27a' },
+    // Assets (4)
+    { code: '1000', name: 'Business Checking',        account_type: 'asset',     irs_line: 'Balance sheet' },
+    { code: '1010', name: 'PayPal',                   account_type: 'asset',     irs_line: 'Balance sheet' },
+    { code: '1020', name: 'Venmo',                    account_type: 'asset',     irs_line: 'Balance sheet' },
+    { code: '1100', name: 'Equipment',                account_type: 'asset',     irs_line: 'Line 13 (depreciation)' },
+    { code: '1200', name: 'Materials Inventory',      account_type: 'asset',     irs_line: 'Balance sheet' },
+    // Liabilities (3)
+    { code: '2000', name: 'Business Credit Card',     account_type: 'liability', irs_line: 'Balance sheet' },
+    { code: '2100', name: 'Sales Tax Payable',        account_type: 'liability', irs_line: 'n/a' },
+    { code: '2200', name: 'Owner Draws / Equity',     account_type: 'liability', irs_line: 'n/a' },
+    // Equity (1)
+    { code: '3000', name: "Owner\u2019s Equity",      account_type: 'equity',    irs_line: 'n/a' },
+  ];
+
+  const insertAccount = db.prepare(`
+    INSERT INTO accounts (id, code, name, account_type, irs_line, is_system, position)
+    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, 1, ?)
+  `);
+  const seedTx = db.transaction((rows) => {
+    rows.forEach((row, idx) => {
+      insertAccount.run(row.code, row.name, row.account_type, row.irs_line, idx);
+    });
+  });
+  seedTx(SEED_ACCOUNTS);
 }
 
 export default db;

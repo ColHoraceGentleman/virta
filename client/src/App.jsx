@@ -11,10 +11,37 @@ import SettingsModal from './components/SettingsModal.jsx';
 import FilterBar, { applyFilters, loadFilters } from './components/FilterBar.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
 import CalendarSidebar from './components/TodaySidebar.jsx';
+import BooksShell from './books/BooksShell.jsx';
 
 const VIEWS = { BOARD: 'board', LIST: 'list' };
 
 export default function App() {
+  // Route switch: if the URL is /books/*, render the Virta Books shell instead
+  // of the task-manager. Path is reactive so in-app navigation (history.pushState)
+  // re-renders without a page reload.
+  const [pathname, setPathname] = useState(
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+  useEffect(() => {
+    function onPop() { setPathname(window.location.pathname); }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  // If BooksShell uses pushState, App.jsx won't see it (only popstate fires).
+  // Workaround: a tiny interval polls the path so back/forward + same-tab nav both work.
+  // Cheap (no-op when unchanged) and avoids a context bridge.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const p = window.location.pathname;
+      setPathname(prev => (prev === p ? prev : p));
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  if (pathname.startsWith('/books')) {
+    return <BooksShell />;
+  }
+
   const [view, setView] = useState(localStorage.getItem('task-view') || VIEWS.BOARD);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
