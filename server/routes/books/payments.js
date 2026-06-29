@@ -19,6 +19,10 @@ function sumPayments(invoiceId) {
 }
 
 // After a payment CRUD op, check if invoice should transition sent → paid.
+// IMPORTANT: this function performs writes AND queries (UPDATE for paid transition).
+// Callers MUST run it inside a `db.transaction(...)` together with the upstream write so
+// the INSERT/UPDATE/DELETE and the status transition are atomic. If something inside
+// throws, the whole batch rolls back and no payment is recorded.
 function maybeTransitionToPaid(invoiceId) {
   const inv = db.prepare('SELECT id, status, total FROM invoices WHERE id = ?').get(invoiceId);
   if (!inv) return null;
@@ -34,6 +38,24 @@ function maybeTransitionToPaid(invoiceId) {
     return 'paid';
   }
   return inv.status;
+}
+
+// After deleting a payment, decide whether a `paid` invoice should revert to `sent`.
+// Same atomicity requirement: call inside the DELETE transaction.
+function maybeRevertPaidToSent(invoiceId) {
+  const inv = db.prepare('SELECT id, status, total FROM invoices WHERE id = ?').get(invoiceId);
+  if (!inv) return null;
+  if (inv.status !== 'paid') return inv.status;
+  const { total } = sumPayments(invoiceId);
+  if (total + 0.0001 < Number(inv.total)) {
+    db.prepare(`
+      UPDATE invoices
+      SET status = 'sent', paid_at = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(invoiceId);
+    return 'sent';
+  }
+  return 'paid';
 }
 
 // ----- Routes ----------------------------------------------------------------
@@ -78,6 +100,10 @@ router.get('/:id', (req, res) => {
 
 // POST /api/v1/books/payments
 // Body: { invoice_id, paid_on, amount, method?, reference?, notes? }
+//
+// B2 + S6 fix: INSERT payment and any status transition run inside a single
+// `db.transaction(...)`. If anything inside throws after the INSERT, the whole thing
+// rolls back and no payment is recorded.
 router.post('/', (req, res) => {
   try {
     const body = req.body || {};
@@ -103,22 +129,23 @@ router.post('/', (req, res) => {
     const paidOn = body.paid_on || new Date().toISOString().slice(0, 10);
 
     const id = generateId();
-    db.prepare(`
-      INSERT INTO payments (id, invoice_id, paid_on, method, amount, reference, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      body.invoice_id,
-      paidOn,
-      body.method || null,
-      amount,
-      body.reference || null,
-      body.notes || null,
-    );
+    let resultingStatus = invoice.status;
 
     const tx = db.transaction(() => {
-      // After payment recorded, flip sent → paid if sum >= total.
-      maybeTransitionToPaid(body.invoice_id);
+      db.prepare(`
+        INSERT INTO payments (id, invoice_id, paid_on, method, amount, reference, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        body.invoice_id,
+        paidOn,
+        body.method || null,
+        amount,
+        body.reference || null,
+        body.notes || null,
+      );
+      // After payment recorded, flip sent/overdue → paid if sum >= total.
+      resultingStatus = maybeTransitionToPaid(body.invoice_id);
     });
     tx();
 
@@ -139,6 +166,8 @@ router.post('/', (req, res) => {
 });
 
 // PATCH /api/v1/books/payments/:id
+//
+// S6 fix: UPDATE payment + any status recompute run inside a single transaction.
 router.patch('/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
@@ -168,10 +197,14 @@ router.patch('/:id', (req, res) => {
       return res.json({ data: existing });
     }
     values.push(req.params.id);
-    db.prepare(`UPDATE payments SET ${updates.join(', ')} WHERE id = ?`).run(...values);
 
-    // Recompute paid status in case amount changed.
-    maybeTransitionToPaid(existing.invoice_id);
+    const tx = db.transaction(() => {
+      db.prepare(`UPDATE payments SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+      // Recompute paid status in case amount changed.
+      maybeTransitionToPaid(existing.invoice_id);
+    });
+    tx();
+
     const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
     const invoiceAfter = db.prepare('SELECT status, paid_at, total FROM invoices WHERE id = ?').get(existing.invoice_id);
     const sum = sumPayments(existing.invoice_id);
@@ -189,28 +222,23 @@ router.patch('/:id', (req, res) => {
 });
 
 // DELETE /api/v1/books/payments/:id
+//
+// B2 + S5 fix: DELETE payment + any paid → sent revert run inside a single transaction.
+// If anything inside throws, the payment is not deleted and the invoice stays paid.
 router.delete('/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Payment not found', code: 'NOT_FOUND' });
 
-    db.prepare('DELETE FROM payments WHERE id = ?').run(req.params.id);
-
-    // After deleting a payment, an invoice that was `paid` may now need to revert to `sent`.
-    // Spec only says "sent → paid when sum >= total"; it doesn't say "paid → sent when sum < total".
-    // But it's clearly what the user would want for accuracy. We revert paid → sent (not overdue,
-    // since the invoice was originally sent). Clear paid_at.
-    const inv = db.prepare('SELECT id, status FROM invoices WHERE id = ?').get(existing.invoice_id);
-    if (inv && inv.status === 'paid') {
-      const { total } = sumPayments(existing.invoice_id);
-      if (total + 0.0001 < Number(db.prepare('SELECT total FROM invoices WHERE id = ?').get(existing.invoice_id).total)) {
-        db.prepare(`
-          UPDATE invoices
-          SET status = 'sent', paid_at = NULL, updated_at = datetime('now')
-          WHERE id = ?
-        `).run(existing.invoice_id);
-      }
-    }
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM payments WHERE id = ?').run(req.params.id);
+      // After deleting a payment, an invoice that was `paid` may now need to revert to `sent`.
+      // Spec is silent on this exact flow, but it's clearly the desired behavior for accuracy:
+      // if the remaining sum < total, drop the paid marking. We revert to `sent` (not `overdue`,
+      // since the invoice was originally sent). Clear paid_at.
+      maybeRevertPaidToSent(existing.invoice_id);
+    });
+    tx();
 
     res.json({ data: { success: true, id: req.params.id, invoice_id: existing.invoice_id } });
   } catch (err) {

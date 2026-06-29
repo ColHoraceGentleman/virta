@@ -259,6 +259,18 @@ safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_
 safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_status   ON invoices(status)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date)');
 
+// Idempotent migration: add `overdue_notified_at` to invoices so the overdue cron can
+// stamp each invoice after a successful notification email — B3 fix prevents re-emailing
+// the same customer every day. SQLite has no `ADD COLUMN IF NOT EXISTS`, so we gate on a
+// PRAGMA table_info check. Safe to run on every boot.
+{
+  const invCols = db.prepare('PRAGMA table_info(invoices)').all().map(c => c.name);
+  if (!invCols.includes('overdue_notified_at')) {
+    try { db.exec("ALTER TABLE invoices ADD COLUMN overdue_notified_at TEXT"); } catch { /* ignore */ }
+    try { db.exec("CREATE INDEX IF NOT EXISTS idx_invoices_overdue_notified ON invoices(overdue_notified_at)"); } catch { /* ignore */ }
+  }
+}
+
 // Line items — see ACCOUNTING-v1.md §3
 safeExec(`
   CREATE TABLE IF NOT EXISTS line_items (

@@ -92,7 +92,17 @@ router.patch('/', (req, res) => {
     if (body.smtp_password !== undefined && body.smtp_password !== null && body.smtp_password !== '') {
       const settings = db.prepare('SELECT smtp_keychain_service FROM settings_invoices WHERE id = 1').get();
       const service = settings.smtp_keychain_service || 'com.virta.books.smtp';
-      const ok = setSmtpPassword(body.smtp_password, service);
+      const pw = String(body.smtp_password);
+      // Mirror the validator in services/email.js so we can return a clean 400 when the
+      // client sent something we'd reject, vs. a 500 when the keychain CLI itself failed.
+      const SHELL_UNSAFE = /[\x00-\x1f\x7f;&|<>\n\r]/;
+      if (pw.length === 0 || pw.length > 256 || SHELL_UNSAFE.test(pw)) {
+        return res.status(400).json({
+          error: 'SMTP password contains disallowed characters (control chars, ; & | < >) or wrong length.',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+      const ok = setSmtpPassword(pw, service);
       if (!ok) {
         return res.status(500).json({
           error: 'Failed to save SMTP password to macOS Keychain. Check permissions.',
