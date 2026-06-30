@@ -76,7 +76,27 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
   const [columnId, setColumnId]       = useState(defaultColumnId || columns?.[0]?.id || '');
   const [assignees, setAssignees]     = useState('');
   const [categoryId, setCategoryId]   = useState('');
+  const [subtasks, setSubtasks]       = useState([]); // [{ id, title }]
+  const [subtaskInput, setSubtaskInput] = useState('');
   const [saving, setSaving]           = useState(false);
+
+  function addSubtask() {
+    const t = subtaskInput.trim();
+    if (!t) return;
+    setSubtasks(prev => [...prev, { id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: t }]);
+    setSubtaskInput('');
+  }
+
+  function removeSubtask(id) {
+    setSubtasks(prev => prev.filter(s => s.id !== id));
+  }
+
+  function handleSubtaskKey(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSubtask();
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -90,7 +110,8 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
         dueDate: dueDate || null,
         priority,
         assignees: assignees.split(',').map(a => a.trim()).filter(Boolean),
-        categoryId: categoryId || null
+        categoryId: categoryId || null,
+        subtasks: subtasks.map(s => ({ title: s.title.trim() })).filter(s => s.title)
       });
       onClose();
     } catch (err) {
@@ -171,6 +192,49 @@ export default function TaskCreateModal({ columns, categories, defaultColumnId, 
               onChange={setCategoryId}
               darkMode={darkMode}
             />
+          </div>
+
+          <div>
+            <label className={`block text-xs mb-1.5 uppercase tracking-wide font-medium ${labelColor}`}>Subtasks</label>
+            {subtasks.length > 0 && (
+              <ul className={`mb-2 space-y-1.5 border rounded-lg p-2 ${darkMode ? 'border-slate-600 bg-slate-700/40' : 'border-slate-200 bg-slate-50'}`}>
+                {subtasks.map(s => (
+                  <li key={s.id} className="flex items-center gap-2 text-sm">
+                    <span className={`flex-1 truncate ${darkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                      <span className={`mr-1.5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>☐</span>
+                      {s.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeSubtask(s.id)}
+                      className={`text-xs px-2 py-0.5 rounded transition-colors ${darkMode ? 'text-slate-400 hover:text-red-300 hover:bg-slate-600' : 'text-slate-400 hover:text-red-600 hover:bg-slate-200'}`}
+                      aria-label={`Remove subtask "${s.title}"`}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={subtaskInput}
+                onChange={e => setSubtaskInput(e.target.value)}
+                onKeyDown={handleSubtaskKey}
+                placeholder="Add a subtask and press Enter…"
+                className={`flex-1 border rounded-lg px-3 py-2 focus:outline-none ${inputClass}`}
+              />
+              <button
+                type="button"
+                onClick={addSubtask}
+                disabled={!subtaskInput.trim()}
+                className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${darkMode ? 'bg-slate-700 hover:bg-slate-600 border-slate-600 text-slate-200' : 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'}`}
+              >
+                Add
+              </button>
+            </div>
+            <p className={`text-xs mt-1 ${hintColor}`}>Optional — you can also add subtasks later</p>
           </div>
 
           <div>

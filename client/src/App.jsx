@@ -392,7 +392,7 @@ export default function App() {
             try {
               const colId = fields.columnId || columns[0]?.id;
               if (!colId) return;
-              await api.createTask({
+              const task = await api.createTask({
                 columnId: colId,
                 title: fields.title,
                 description: fields.description,
@@ -401,6 +401,18 @@ export default function App() {
                 assignees: fields.assignees,
                 categoryId: fields.categoryId
               });
+              // Create any staged subtasks in parallel. Failures here don't
+              // unwind the task — the user can still add subtasks via the
+              // task modal. We log so issues are visible in the console.
+              if (task && task.id && Array.isArray(fields.subtasks) && fields.subtasks.length > 0) {
+                const results = await Promise.allSettled(
+                  fields.subtasks.map(st => api.createSubtask(task.id, { title: st.title }))
+                );
+                const failed = results.filter(r => r.status === 'rejected');
+                if (failed.length > 0) {
+                  console.warn(`Created task but ${failed.length}/${results.length} subtask(s) failed:`, failed);
+                }
+              }
             } catch (err) {
               console.error('Failed to create task:', err);
             }
