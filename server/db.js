@@ -332,6 +332,115 @@ safeExec(`
   }
 }
 
+// =====================================================================
+// Virta Books — Phase C (Import + Categorization)
+// Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
+// Schema mirrors ACCOUNTING-v1.md §5 + §6:
+//   transactions, vendor_rules, csv_source_mappings, journal_entries, journal_lines
+// All CREATE TABLE / CREATE INDEX statements are idempotent.
+// =====================================================================
+
+// Transactions — imported bank/CC/PayPal/Venmo rows, before categorization.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS transactions (
+    id                  TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    account_id          TEXT NOT NULL REFERENCES accounts(id),
+    imported_at         TEXT DEFAULT (datetime('now')),
+    txn_date            TEXT NOT NULL,
+    description         TEXT NOT NULL,
+    amount              REAL NOT NULL,
+    raw_source          TEXT,
+    raw_csv_row         TEXT,
+    dedupe_hash         TEXT NOT NULL UNIQUE,
+    category_account_id TEXT REFERENCES accounts(id),
+    vendor_normalized   TEXT,
+    notes               TEXT,
+    status              TEXT NOT NULL DEFAULT 'uncategorized'
+                        CHECK (status IN ('uncategorized','categorized','excluded')),
+    created_at          TEXT DEFAULT (datetime('now')),
+    updated_at          TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_account   ON transactions(account_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_date      ON transactions(txn_date)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_status    ON transactions(status)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_category  ON transactions(category_account_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_vendor    ON transactions(vendor_normalized)');
+
+// Idempotent Phase C-Fix migration: near-duplicate detection (R8 dedupe upgrade).
+// Same vendor_normalized + same amount + txn_date within ±3 days on the same account →
+// candidate near-duplicate. The user resolves via the Categorization UI (keep both /
+// keep this / keep original). near_duplicate_of references transactions(id) but is not
+// a hard FK so deletes don't cascade unexpectedly.
+{
+  const txnCols = db.prepare('PRAGMA table_info(transactions)').all().map(c => c.name);
+  if (!txnCols.includes('near_duplicate_of')) {
+    safeExec('ALTER TABLE transactions ADD COLUMN near_duplicate_of TEXT REFERENCES transactions(id)');
+  }
+}
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_near_dup ON transactions(near_duplicate_of)');
+
+// Vendor rules — auto-categorization rules.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS vendor_rules (
+    id                   TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    vendor_pattern       TEXT NOT NULL,
+    category_account_id  TEXT NOT NULL REFERENCES accounts(id),
+    match_count          INTEGER NOT NULL DEFAULT 0,
+    is_active            INTEGER NOT NULL DEFAULT 1,
+    created_at           TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_vendor_rules_pattern ON vendor_rules(vendor_pattern)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_vendor_rules_active  ON vendor_rules(is_active)');
+
+// CSV source mappings — saved per-source column mappings.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS csv_source_mappings (
+    id                     TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    source_key             TEXT NOT NULL,
+    header_signature       TEXT NOT NULL,
+    date_col               TEXT NOT NULL,
+    description_col        TEXT NOT NULL,
+    amount_col             TEXT NOT NULL,
+    amount_sign_convention TEXT NOT NULL DEFAULT 'negative_outflow'
+                           CHECK (amount_sign_convention IN ('negative_outflow','positive_outflow')),
+    memorized_account_id   TEXT REFERENCES accounts(id),
+    created_at             TEXT DEFAULT (datetime('now')),
+    last_used_at           TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE UNIQUE INDEX IF NOT EXISTS idx_csv_source_mappings_sig ON csv_source_mappings(source_key, header_signature)');
+
+// Journal entries — double-entry bookkeeping for categorized transactions
+// (and future sources: manual journal entries, invoice payments).
+safeExec(`
+  CREATE TABLE IF NOT EXISTS journal_entries (
+    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    txn_date     TEXT NOT NULL,
+    description  TEXT NOT NULL,
+    source       TEXT NOT NULL
+                 CHECK (source IN ('transaction_import','manual','invoice_payment')),
+    source_id    TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_journal_entries_source ON journal_entries(source, source_id)');
+
+// Journal lines — debit/credit sides of each entry.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS journal_lines (
+    id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    entry_id   TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    debit      REAL NOT NULL DEFAULT 0,
+    credit     REAL NOT NULL DEFAULT 0,
+    position   REAL NOT NULL DEFAULT 0
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_journal_lines_entry   ON journal_lines(entry_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id)');
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
