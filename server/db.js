@@ -545,6 +545,11 @@ if (!categoryCols.includes('position')) {
   // Backfill: assign positions based on rowid order
   try { db.exec('UPDATE categories SET position = rowid'); } catch { /* ignore */ }
 }
+// dark_color: nullable Tailwind 600-level hex for dark-mode rendering of category-colored cards.
+// Light color (300-level) stays the default; dark_color is opt-in via the UI.
+if (!categoryCols.includes('dark_color')) {
+  try { db.exec('ALTER TABLE categories ADD COLUMN dark_color TEXT'); } catch { /* ignore */ }
+}
 
 // Seed default project if none exist
 const projectCount = db.prepare('SELECT COUNT(*) as count FROM projects').get();

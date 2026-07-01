@@ -260,25 +260,29 @@ export function getCategories(projectId) {
   return db.prepare('SELECT * FROM categories ORDER BY position ASC, name ASC').all();
 }
 
-export function createCategory({ name, color, projectId }) {
+export function createCategory({ name, color, darkColor, projectId }) {
   const id = generateId();
   const maxPos = db.prepare(
     'SELECT MAX(position) as maxPos FROM categories WHERE project_id = ?'
   ).get(projectId || null);
   const position = (maxPos?.maxPos ?? -1) + 1;
   db.prepare(
-    'INSERT INTO categories (id, name, color, project_id, position) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, name, color || '#6366f1', projectId || null, position);
+    'INSERT INTO categories (id, name, color, dark_color, project_id, position) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(id, name, color || '#6366f1', darkColor || null, projectId || null, position);
   return db.prepare('SELECT * FROM categories WHERE id = ?').get(id);
 }
 
-export function updateCategory(id, { name, color, position }) {
+export function updateCategory(id, { name, color, darkColor, position }) {
   const current = db.prepare('SELECT * FROM categories WHERE id = ?').get(id);
   if (!current) return null;
-  db.prepare('UPDATE categories SET name = ?, color = ?, position = ? WHERE id = ?')
+  // darkColor === undefined  → leave as-is
+  // darkColor === null       → explicitly clear
+  // darkColor === '#hex'     → set
+  db.prepare('UPDATE categories SET name = ?, color = ?, dark_color = ?, position = ? WHERE id = ?')
     .run(
       name ?? current.name,
       color ?? current.color,
+      darkColor !== undefined ? darkColor : current.dark_color,
       position !== undefined ? position : current.position,
       id
     );
