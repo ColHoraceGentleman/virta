@@ -133,4 +133,11 @@ export const booksApi = {
 
   // Health (used by dashboard counts)
   health: () => request('GET', '/health'),
+
+  // Phase D: Reports
+  arAging: (asOf) =>
+    request('GET', `/reports/ar-aging${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`),
+  // Schedule C returns a ZIP blob. Caller is expected to download it
+  // (window.location.href) — but we expose this for completeness.
+  scheduleCUrl: (year) => `${BASE}/reports/schedule-c?year=${encodeURIComponent(year)}`,
 };

@@ -14,6 +14,7 @@ import ImportCSV from './ImportCSV.jsx';
 import Categorization from './Categorization.jsx';
 import SettingsSourceMappings from './SettingsSourceMappings.jsx';
 import SettingsVendorRules from './SettingsVendorRules.jsx';
+import Reports from './Reports.jsx';
 import { booksApi } from './api.js';
 
 // Tiny client-side router. Reads window.location.pathname, listens to popstate.
@@ -73,10 +74,11 @@ function BooksNav({ path, navigate }) {
         {link('/books/customers',      'Customers',  '👥')}
         {link('/books/import',         'Import',     '📥')}
         {link('/books/categorize',     'Categorize', '🗂️')}
+        {link('/books/reports',        'Reports',    '📈')}
         {link('/books/settings/accounts', 'Settings', '⚙️')}
       </div>
       <div className="text-xs text-slate-400">
-        <span className="opacity-60">Phase C · Import + Categorization</span>
+        <span className="opacity-60">Phase D · Reports</span>
       </div>
     </div>
   );
@@ -167,6 +169,8 @@ export default function BooksShell() {
     page = <SettingsSourceMappings navigate={navigate} />;
   } else if (path === '/books/settings/vendor-rules' || path === '/books/settings/vendor-rules/') {
     page = <SettingsVendorRules navigate={navigate} />;
+  } else if (path === '/books/reports' || path === '/books/reports/') {
+    page = <Reports navigate={navigate} />;
   } else {
     page = (
       <div className="p-8 text-slate-300">

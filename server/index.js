@@ -22,6 +22,7 @@ import booksImportsRouter from './routes/books/imports.js';
 import booksTransactionsRouter from './routes/books/transactions.js';
 import booksVendorRulesRouter from './routes/books/vendor-rules.js';
 import booksSourceMappingsRouter from './routes/books/source-mappings.js';
+import booksReportsRouter from './routes/books/reports.js';
 import db from './db.js';
 import { startOverdueCron } from './services/overdueCron.js';
 
@@ -66,6 +67,7 @@ app.use('/api/v1/books/imports', booksImportsRouter);
 app.use('/api/v1/books/transactions', booksTransactionsRouter);
 app.use('/api/v1/books/vendor-rules', booksVendorRulesRouter);
 app.use('/api/v1/books/source-mappings', booksSourceMappingsRouter);
+app.use('/api/v1/books/reports', booksReportsRouter);
 
 // Health check for books
 app.get('/api/v1/books/health', (req, res) => {
@@ -77,7 +79,7 @@ app.get('/api/v1/books/health', (req, res) => {
   const sourceMappingCount = db.prepare('SELECT COUNT(*) as c FROM csv_source_mappings').get().c;
   res.json({
     status: 'ok',
-    phase: 'C',
+    phase: 'D',
     accounts: accountCount,
     customers: customerCount,
     invoices: invoiceCount,
