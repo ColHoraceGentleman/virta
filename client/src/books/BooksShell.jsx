@@ -10,6 +10,10 @@ import InvoiceForm from './InvoiceForm.jsx';
 import InvoiceView from './InvoiceView.jsx';
 import PaymentsIn from './PaymentsIn.jsx';
 import SettingsInvoices from './SettingsInvoices.jsx';
+import ImportCSV from './ImportCSV.jsx';
+import Categorization from './Categorization.jsx';
+import SettingsSourceMappings from './SettingsSourceMappings.jsx';
+import SettingsVendorRules from './SettingsVendorRules.jsx';
 import { booksApi } from './api.js';
 
 // Tiny client-side router. Reads window.location.pathname, listens to popstate.
@@ -63,15 +67,47 @@ function BooksNav({ path, navigate }) {
           <span>VIRTA BOOKS</span>
         </button>
         <div className="w-px h-5 bg-slate-700" />
-        {link('/books',          'Dashboard', '📊')}
-        {link('/books/invoices', 'Invoices',  '🧾')}
-        {link('/books/payments', 'Payments',  '💵')}
-        {link('/books/customers', 'Customers', '👥')}
-        {link('/books/settings/accounts',  'Settings', '⚙️')}
+        {link('/books',                'Dashboard',  '📊')}
+        {link('/books/invoices',       'Invoices',   '🧾')}
+        {link('/books/payments',       'Payments',   '💵')}
+        {link('/books/customers',      'Customers',  '👥')}
+        {link('/books/import',         'Import',     '📥')}
+        {link('/books/categorize',     'Categorize', '🗂️')}
+        {link('/books/settings/accounts', 'Settings', '⚙️')}
       </div>
       <div className="text-xs text-slate-400">
-        <span className="opacity-60">Phase B · Invoicing</span>
+        <span className="opacity-60">Phase C · Import + Categorization</span>
       </div>
+    </div>
+  );
+}
+
+// Settings submenu — surfaces Phase C settings pages.
+function SettingsMenu({ path, navigate }) {
+  const dm = true;
+  const link = (to, label) => {
+    const active = path === to;
+    return (
+      <button
+        onClick={() => navigate(to)}
+        className={`px-3 py-1.5 text-sm rounded transition-colors ${
+          active
+            ? 'bg-slate-700 text-white'
+            : dm ? 'text-slate-300 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
+  return (
+    <div className="mb-4 flex flex-wrap gap-2 px-2 py-2 bg-slate-900/50 rounded border border-slate-800">
+      <span className="text-xs text-slate-500 px-2 self-center">Settings:</span>
+      {link('/books/settings/accounts', 'Chart of Accounts')}
+      {link('/books/settings/customers', 'Customers')}
+      {link('/books/settings/invoices', 'Invoices')}
+      {link('/books/settings/source-mappings', 'Source Mappings')}
+      {link('/books/settings/vendor-rules', 'Vendor Rules')}
     </div>
   );
 }
@@ -86,6 +122,9 @@ export default function BooksShell() {
       navigate('/books/dashboard');
     }
   }, [path, navigate]);
+
+  // Settings pages get a submenu. Detect by path prefix.
+  const isSettingsPage = path.startsWith('/books/settings');
 
   let page;
   if (path === '/books/dashboard' || path === '/books/dashboard/') {
@@ -102,24 +141,32 @@ export default function BooksShell() {
   } else if (path.startsWith('/books/invoices/')) {
     const id = path.split('/')[3];
     page = <InvoiceView navigate={navigate} invoiceId={id} />;
-  } else if (path === '/books/customers') {
+  } else if (path === '/books/customers' || path === '/books/customers/') {
     page = <CustomersList navigate={navigate} />;
   } else if (path === '/books/customers/new') {
     page = <CustomerForm navigate={navigate} />;
   } else if (path.startsWith('/books/customers/') && path !== '/books/customers/new') {
     const id = path.split('/')[3];
     page = <CustomerForm navigate={navigate} customerId={id} />;
+  } else if (path === '/books/import' || path === '/books/import/') {
+    page = <ImportCSV navigate={navigate} />;
+  } else if (path === '/books/categorize' || path === '/books/categorize/') {
+    page = <Categorization navigate={navigate} />;
   } else if (path === '/books/settings/accounts') {
     page = <ChartOfAccounts navigate={navigate} />;
   } else if (path === '/books/settings/accounts/new') {
     page = <AccountForm navigate={navigate} />;
-  } else if (path.startsWith('/books/settings/accounts/') && path !== '/books/settings/accounts/new') {
+  } else if (path.startsWith('/books/settings/accounts/') && path !== '/books/settings/accounts/new' && path !== '/books/settings/accounts/merge') {
     const id = path.split('/')[4];
     page = <AccountForm navigate={navigate} accountId={id} />;
   } else if (path === '/books/settings/accounts/merge') {
     page = <MergeAccounts navigate={navigate} />;
   } else if (path === '/books/settings/invoices') {
     page = <SettingsInvoices navigate={navigate} />;
+  } else if (path === '/books/settings/source-mappings' || path === '/books/settings/source-mappings/') {
+    page = <SettingsSourceMappings navigate={navigate} />;
+  } else if (path === '/books/settings/vendor-rules' || path === '/books/settings/vendor-rules/') {
+    page = <SettingsVendorRules navigate={navigate} />;
   } else {
     page = (
       <div className="p-8 text-slate-300">
@@ -138,7 +185,10 @@ export default function BooksShell() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
       <BooksNav path={path} navigate={navigate} />
-      <main className="flex-1 p-6 max-w-6xl w-full mx-auto">{page}</main>
+      <main className="flex-1 p-6 max-w-6xl w-full mx-auto">
+        {isSettingsPage && <SettingsMenu path={path} navigate={navigate} />}
+        {page}
+      </main>
     </div>
   );
 }

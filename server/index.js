@@ -18,6 +18,10 @@ import booksCustomersRouter from './routes/books/customers.js';
 import booksInvoicesRouter from './routes/books/invoices.js';
 import booksPaymentsRouter from './routes/books/payments.js';
 import booksInvoiceSettingsRouter from './routes/books/settings/invoices.js';
+import booksImportsRouter from './routes/books/imports.js';
+import booksTransactionsRouter from './routes/books/transactions.js';
+import booksVendorRulesRouter from './routes/books/vendor-rules.js';
+import booksSourceMappingsRouter from './routes/books/source-mappings.js';
 import db from './db.js';
 import { startOverdueCron } from './services/overdueCron.js';
 
@@ -50,26 +54,36 @@ app.use('/api/v1/attachments', attachmentsRouter);
 // (each route is declared in full inside the router), so mount at root.
 app.use('/api/v1', subtasksRouter);
 
-// Virta Books — Phase A (Foundation) + Phase B (Invoicing)
-// Mounted at /api/v1/books/* so future phases (transactions, etc.)
-// can land alongside without colliding with task-manager routes.
+// Virta Books — Phase A (Foundation) + Phase B (Invoicing) + Phase C (Import + Categorization)
+// Mounted at /api/v1/books/* so future phases can land alongside without colliding
+// with task-manager routes.
 app.use('/api/v1/books/accounts', booksAccountsRouter);
 app.use('/api/v1/books/customers', booksCustomersRouter);
 app.use('/api/v1/books/invoices', booksInvoicesRouter);
 app.use('/api/v1/books/payments', booksPaymentsRouter);
 app.use('/api/v1/books/settings/invoices', booksInvoiceSettingsRouter);
+app.use('/api/v1/books/imports', booksImportsRouter);
+app.use('/api/v1/books/transactions', booksTransactionsRouter);
+app.use('/api/v1/books/vendor-rules', booksVendorRulesRouter);
+app.use('/api/v1/books/source-mappings', booksSourceMappingsRouter);
 
 // Health check for books
 app.get('/api/v1/books/health', (req, res) => {
   const accountCount = db.prepare('SELECT COUNT(*) as c FROM accounts').get().c;
   const customerCount = db.prepare('SELECT COUNT(*) as c FROM customers').get().c;
   const invoiceCount = db.prepare('SELECT COUNT(*) as c FROM invoices').get().c;
+  const transactionCount = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
+  const vendorRuleCount = db.prepare('SELECT COUNT(*) as c FROM vendor_rules').get().c;
+  const sourceMappingCount = db.prepare('SELECT COUNT(*) as c FROM csv_source_mappings').get().c;
   res.json({
     status: 'ok',
-    phase: 'B',
+    phase: 'C',
     accounts: accountCount,
     customers: customerCount,
     invoices: invoiceCount,
+    transactions: transactionCount,
+    vendor_rules: vendorRuleCount,
+    source_mappings: sourceMappingCount,
     timestamp: new Date().toISOString(),
   });
 });

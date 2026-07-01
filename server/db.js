@@ -441,6 +441,51 @@ safeExec(`
 safeExec('CREATE INDEX IF NOT EXISTS idx_journal_lines_entry   ON journal_lines(entry_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(account_id)');
 
+// F1 migration: make journal_entries.source_id a real FK to transactions(id) with ON DELETE CASCADE.
+// Pre-F1: source_id is a soft reference (TEXT). The resolve-duplicate endpoint manually deleted
+// journal entries before deleting transactions. Any other delete path that "forgot" the cleanup
+// would leak orphan journal entries that Phase D reports would pick up.
+// Post-F1: deleting a transaction cascades to its journal entries (and via journal_lines.entry_id
+// to the lines). Any delete path that forgets the helper is structurally safe — the DB does it.
+// Tradeoff: invoice-payments and manual sources still use the same column without FK enforcement
+// (their IDs live in different tables). When invoice-payments need cascade, add a separate FK column.
+// Detect via PRAGMA — if the source_id column lacks REFERENCES transactions, rebuild.
+// SQLite only enforces FKs when PRAGMA foreign_keys=ON (already set at top of file).
+// IMPORTANT: with FK enforcement on, `DROP TABLE journal_entries` cascade-deletes the 14
+// journal_lines rows that reference it. So we temporarily disable FKs across the rebuild,
+// then re-enable. The data itself (hex IDs in journal_lines.entry_id) survives because we
+// INSERT all journal_entries rows into the new table with their original IDs.
+{
+  const journalSchema = db.prepare(`
+    SELECT sql FROM sqlite_master WHERE type='table' AND name='journal_entries'
+  `).get();
+  const hasFK = journalSchema && /source_id\s+TEXT\s+REFERENCES\s+transactions/i.test(journalSchema.sql);
+  if (!hasFK) {
+    console.log('[F1] Migrating journal_entries: adding FK on source_id with ON DELETE CASCADE');
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      BEGIN TRANSACTION;
+      CREATE TABLE journal_entries_new (
+        id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        txn_date     TEXT NOT NULL,
+        description  TEXT NOT NULL,
+        source       TEXT NOT NULL
+                     CHECK (source IN ('transaction_import','manual','invoice_payment')),
+        source_id    TEXT REFERENCES transactions(id) ON DELETE CASCADE,
+        created_at   TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO journal_entries_new (id, txn_date, description, source, source_id, created_at)
+        SELECT id, txn_date, description, source, source_id, created_at
+        FROM journal_entries;
+      DROP TABLE journal_entries;
+      ALTER TABLE journal_entries_new RENAME TO journal_entries;
+      CREATE INDEX idx_journal_entries_source ON journal_entries(source, source_id);
+      COMMIT;
+    `);
+    db.pragma('foreign_keys = ON');
+  }
+}
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');
