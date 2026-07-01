@@ -63,3 +63,6 @@ models.json.bak
 ../projects/flashcard-project/
 ../projects/_template/
 ../projects/atreyu-photo/
+# OAuth / API credentials — never commit
+google-credentials.json
+*-credentials.json
