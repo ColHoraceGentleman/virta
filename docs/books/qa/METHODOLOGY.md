@@ -4,6 +4,8 @@
 
 This is the discipline. Project docs are the data. Keep them separate so the discipline survives project turnover.
 
+**For the universal engineering policies** (when to run QA, the post-Cinder checklist, hard rules, testing philosophy, scope thresholds): see `~/clawd/projects/process/ENGINEERING.md`. This methodology is the *how* of QA on a project; ENGINEERING.md is the *why* and *when*.
+
 ---
 
 ## The problem
@@ -138,8 +140,13 @@ Cross-project conventions (so future projects can inherit):
 
 ---
 
+## Post-Cinder checklist (Rusty's gate)
+
+See `~/clawd/projects/process/ENGINEERING.md` §5.8 for the full Rusty gate. Summary: every Cinder delivery triggers Rusty to (1) fold Test coverage into `qa/QA.md`, (2) decide review depth (full/light/none), (3) spawn Wren if warranted, (4) spawn Echo if warranted, (5) backfill multiple phases in one spawn if needed, (6) log the call in the daily note.
+
 ## Change log
 
 - 2026-07-01 — Initial draft. Roles (Cinder appends, Rusty curates, Echo executes), Playwright as canonical tool, behavior ID convention, failure-artifact spec.
 - 2026-07-01 — Added CINDER_BRIEF_TEMPLATE.md codifying Hard Rules (e.g., STOP on data loss, FK enforcement + DROP TABLE interaction) and requiring Test coverage section in every Cinder report.
 - 2026-07-01 — Added "Visual confirmation" requirement to CINDER_BRIEF_TEMPLATE's Verification spec (item #4). For any rendering/UI change, open the affected view in the browser in both light and dark mode. Lesson from the 2026-07 dark-mode-category-colors delivery: smoke tests that only check the code path miss user-visible state when a project-level dark mode toggle (or similar) is the gate.
+- 2026-07-02 — Post-Cinder checklist promoted to `~/clawd/projects/process/ENGINEERING.md` §5.8 (universal policy). METHODOLOGY.md now references ENGINEERING.md for the *why/when* and stays focused on the *how* of running QA on a project. Change prompted by Phase D / F1 / E.1 shipping without Wren or Echo between Phase C and today — discipline existed, trigger was missing, gate is now codified universally.

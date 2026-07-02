@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import db from '../../db.js';
 import { categorizeTransaction } from './imports.js';
+import { deleteTransaction } from '../../services/journalHelpers.js';
 
 const router = Router();
 
@@ -255,29 +256,18 @@ router.post('/:id/resolve-duplicate', (req, res) => {
           .run(req.params.id);
         cleared = true;
       } else if (action === 'keep_this') {
-        // Delete the original (and its journal entries — lines cascade).
+        // Delete the original. F1: journal_entries cascade via FK on source_id;
+        // journal_lines cascade via journal_lines.entry_id FK. The helper does it all.
         // First, clear any other transactions that reference this original as their near_duplicate_of,
         // since deleting the original would break those FK references.
         db.prepare(`UPDATE transactions SET near_duplicate_of = NULL WHERE near_duplicate_of = ?`).run(originalId);
-        const origEntries = db.prepare(
-          `SELECT id FROM journal_entries WHERE source = 'transaction_import' AND source_id = ?`
-        ).all(originalId);
-        for (const e of origEntries) {
-          db.prepare(`DELETE FROM journal_entries WHERE id = ?`).run(e.id);
-        }
-        db.prepare(`DELETE FROM transactions WHERE id = ?`).run(originalId);
+        deleteTransaction(originalId);
         db.prepare(`UPDATE transactions SET near_duplicate_of = NULL, updated_at = datetime('now') WHERE id = ?`)
           .run(req.params.id);
         deleted = originalId;
       } else if (action === 'keep_original') {
-        // Delete this transaction (and its journal entries).
-        const myEntries = db.prepare(
-          `SELECT id FROM journal_entries WHERE source = 'transaction_import' AND source_id = ?`
-        ).all(req.params.id);
-        for (const e of myEntries) {
-          db.prepare(`DELETE FROM journal_entries WHERE id = ?`).run(e.id);
-        }
-        db.prepare(`DELETE FROM transactions WHERE id = ?`).run(req.params.id);
+        // Delete this transaction. F1: cascade via FK — no manual journal_entries cleanup needed.
+        deleteTransaction(req.params.id);
         deleted = req.params.id;
       }
     });

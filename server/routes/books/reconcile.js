@@ -53,11 +53,17 @@ function normalizeDate(s) {
 
 // Sum credits minus debits for a given account across all journal_lines up to and
 // including the period_end. This is the canonical "books_balance" for the account.
-// For liability accounts (normal balance: credit), this returns a positive number
-// when there's more credit activity — which is what the user expects to see as
-// "what the books say you owe". For asset accounts, debits are the increase; we
-// still return the raw `credit - debit` per the spec ("let the UI show it as signed").
-function computeBooksBalance(accountId, periodEnd) {
+//
+// Sign convention: a positive books_balance matches what the user sees on a bank
+// statement for the account.
+//   - asset accounts are debit-normal: positive = more debits than credits
+//   - liability/equity accounts are credit-normal: positive = more credits than debits
+//
+// (Per Wren finding E1-S2: the previous implementation always returned
+// (credits - debits), which produced a negative books_balance for any asset
+// account with normal debit activity. The diff could never be zero against
+// a positive bank-statement balance, making reconciliation impossible.)
+function computeBooksBalance(accountId, periodEnd, accountType) {
   // periodEnd is YYYY-MM-DD; include the entire day.
   // journal_entries.txn_date is YYYY-MM-DD in practice (canonical form).
   const row = db.prepare(`
@@ -69,7 +75,9 @@ function computeBooksBalance(accountId, periodEnd) {
     WHERE jl.account_id = ?
       AND je.txn_date <= ?
   `).get(accountId, periodEnd);
-  return money((row.credits || 0) - (row.debits || 0));
+  const credits = row.credits || 0;
+  const debits  = row.debits  || 0;
+  return money(accountType === 'asset' ? debits - credits : credits - debits);
 }
 
 // Pull all transactions for an account, then split into uncleared vs cleared
@@ -210,7 +218,10 @@ router.post('/', (req, res) => {
     // Compute books_balance at creation time. The spec says: "across all time up
     // to and including period_end" — so the books_balance for a January recon is
     // the cumulative balance through Jan 31, not just January activity.
-    const booksBalance = computeBooksBalance(account_id, period_end);
+    // Pass account_type so the sign convention matches the account's normal
+    // balance side (asset = debit-normal, others = credit-normal). See
+    // computeBooksBalance() docstring.
+    const booksBalance = computeBooksBalance(account_id, period_end, account.account_type);
 
     const id = generateIdCompat();
     db.prepare(`
@@ -347,6 +358,15 @@ router.post('/:recon_id/clear', (req, res) => {
     if (!recon) {
       return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
     }
+    // Per E1-S1: a reconciled period is closed. Lock out clear/unclear mutations
+    // so the audit record at the moment of sign-off stays consistent. Caller can
+    // reopen by PATCHing status back to 'investigating'.
+    if (recon.status === 'reconciled') {
+      return res.status(409).json({
+        error: 'Cannot modify clears on a reconciled period. Set status to investigating first.',
+        code: 'RECON_LOCKED',
+      });
+    }
     const { transaction_id } = req.body || {};
     if (!transaction_id) {
       return res.status(400).json({ error: 'transaction_id is required', code: 'VALIDATION_ERROR' });
@@ -398,6 +418,15 @@ router.delete('/:recon_id/clear/:transaction_id', (req, res) => {
     const recon = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(req.params.recon_id);
     if (!recon) {
       return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
+    }
+    // Per E1-S1: a reconciled period is closed. Lock out clear/unclear mutations
+    // so the audit record at the moment of sign-off stays consistent. Caller can
+    // reopen by PATCHing status back to 'investigating'.
+    if (recon.status === 'reconciled') {
+      return res.status(409).json({
+        error: 'Cannot modify clears on a reconciled period. Set status to investigating first.',
+        code: 'RECON_LOCKED',
+      });
     }
     const { transaction_id } = req.params;
     // Defensive: confirm the transaction exists (avoid silently doing nothing).

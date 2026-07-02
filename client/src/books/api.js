@@ -135,8 +135,22 @@ export const booksApi = {
   health: () => request('GET', '/health'),
 
   // Phase D: Reports
-  arAging: (asOf) =>
-    request('GET', `/reports/ar-aging${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`),
+  // arAging uses fetch directly (no auto-unwrap) because the endpoint returns a
+  // multi-key response: { data: [...rows...], as_of: "...", totals: {...} }.
+  // The auto-unwrap helper would return just the rows array, leaving
+  // data.as_of / data.totals undefined and crashing the component.
+  arAging: async (asOf) => {
+    const path = `/reports/ar-aging${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`;
+    const res = await fetch(`${BASE}${path}`);
+    const json = await res.json();
+    if (!res.ok) {
+      const err = new Error(json.error || `HTTP ${res.status}`);
+      err.code = json.code;
+      err.status = res.status;
+      throw err;
+    }
+    return json; // { data: [...], as_of: ..., totals: {...} }
+  },
   // Schedule C returns a ZIP blob. Caller is expected to download it
   // (window.location.href) — but we expose this for completeness.
   scheduleCUrl: (year) => `${BASE}/reports/schedule-c?year=${encodeURIComponent(year)}`,

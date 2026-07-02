@@ -209,6 +209,15 @@ function buildTrialBalanceCsv(year) {
   // Trial balance = sum of debits and credits per account that has any
   // journal_lines in the year. Sum of all debits == sum of all credits
   // (it's a trial balance invariant — verified in smoke test).
+  //
+  // SCOPE NOTE (per Wren finding D-S1): this is a YEAR-ACTIVITY trial balance,
+  // not a CUMULATIVE balance. It sums debits/credits only for journal entries
+  // whose txn_date falls within the year. It does NOT include opening balances
+  // for asset/liability/equity accounts, so a bank account with prior-year
+  // history will show only in-year activity here — not the running balance
+  // a bank-statement reconciler would expect. If/when a true balance sheet
+  // is built (Phase H), the date filter below needs to change (or join against
+  // an opening_balances table) to include prior-year activity.
   const rows = db.prepare(`
     SELECT
       a.code AS account_code,

@@ -20,6 +20,7 @@
 | Payments & aging | 2 | never |
 | Settings | 3 | never |
 | **Reports** | **15** | **2026-07-01 (Phase D, manual)** |
+| Reconciliation | 11 | never |
 | Cross-cutting | 4 | never |
 
 ---
@@ -135,6 +136,22 @@ These cover §4 (AR Aging) and §7 (Schedule C CSV Export) of the spec. Phase D 
 
 ---
 
+## Reconciliation
+
+These cover Phase E.1 (per-account monthly reconciliation). New tables: `reconciliations`, `reconciliation_clears`. New column: `transactions.cleared_at`.
+
+- [ ] **VB-REC-01** — Reconciliation list shows all asset/liability accounts with last-reconciled date (green/amber/slate status pills). Expected: all 8 accounts render; pills reflect reconciled/never/in-progress state.
+- [ ] **VB-REC-02** — Creating a draft reconciliation for an account + period computes `books_balance` from journal_lines for that account over that period, with sign convention: asset accounts use `debits - credits`, liability/equity/income/expense use `credits - debits`. Expected: `reconciliations` row created with correct `books_balance`; `status='draft'`. (Sign convention fixed by E.1 fix-pass 2026-07-02 E1-S2; pre-fix behavior was inverted for asset accounts.)
+- [ ] **VB-REC-03** — Marking a transaction cleared inserts a `reconciliation_clears` row and sets `transactions.cleared_at`. Expected: both writes succeed atomically; cleared txn moves to right column in UI.
+- [ ] **VB-REC-04** — Un-clearing a transaction removes the `reconciliation_clears` row and nulls `transactions.cleared_at`. Expected: both writes succeed atomically; txn moves back to uncleared column.
+- [ ] **VB-REC-05** — Pasting a `statement_balance` computes `diff = books_balance - statement_balance`. Expected: `diff` stored on the reconciliation row; UI displays it.
+- [ ] **VB-REC-06** — `diff == 0` allows status → `'reconciled'`; `diff != 0` blocks it (returns 400 `DIFF_NOT_ZERO`). Expected: reconciled status persists when diff is zero; 400 returned when non-zero.
+- [ ] **VB-REC-07** — Creating the same draft twice (same account + period) is idempotent — returns the existing draft with `created: false`. Expected: no duplicate rows in `reconciliations`.
+- [ ] **VB-REC-08** — Reconciliation list UI renders account table with last-reconciled status pills. Expected: page renders at `/books/reconcile`; account rows present; pill colors match state.
+- [ ] **VB-REC-09** — Reconciliation detail UI shows uncleared txns on left, cleared txns with running balance on right. Expected: two-column layout; running balance updates as txns are cleared.
+- [ ] **VB-REC-10** — Period picker defaults to previous month (via `previousMonth()` helper). Expected: on first open, period start/end default to prior calendar month.
+- [ ] **VB-REC-11** — Health endpoint reports `phase: "E.1"` after mount. Expected: `GET /api/v1/books/health` → `{"phase":"E.1",...}`.
+
 ## Status legend
 
 - `[ ]` active, not yet verified by Echo
@@ -144,4 +161,6 @@ These cover §4 (AR Aging) and §7 (Schedule C CSV Export) of the spec. Phase D 
 ## Change log
 
 - 2026-07-01 — Created from Echo's Phase C report findings + spec enumeration. 47 initial behaviors; 6 carry forward from Echo's manual verification.
-- 2026-07-01 — Phase D added: 15 new behaviors (VB-REP-01 through VB-REP-15) covering AR aging + Schedule C CSV export + Reports UI. All 15 verified live by Cinder + Rusty at the API + curl level; UI behaviors verified at the component-implementation level (no browser-driven QA pass yet — those will be the next Echo run's responsibility).
+- 2026-07-01 — Phase D added: 15 new behaviors (VB-REP-01 through VB-REP-15) covering AR aging + Schedule C CSV export + Reports UI. All 15 verified live by Cinder + Rusty at the API + curl level; UI behaviors verified at the component-implementation level (no browser-driven QA pass yet — first Echo browser run is the D+F1+E.1 backfill, 2026-07-02).
+- 2026-07-01 — Phase F1 (orphan-safe delete): VB-DED-07 and VB-DED-08 already present from prior enumeration; updated notes to reflect F1 shipped. No new IDs needed.
+- 2026-07-02 — Phase E.1 (Reconciliation) folded in: 11 new behaviors VB-REC-01 through VB-REC-11. Active count: 73. Wren + Echo backfill review spawned for D + F1 + E.1.
