@@ -15,6 +15,7 @@ import Categorization from './Categorization.jsx';
 import SettingsSourceMappings from './SettingsSourceMappings.jsx';
 import SettingsVendorRules from './SettingsVendorRules.jsx';
 import Reports from './Reports.jsx';
+import Reconcile from './Reconcile.jsx';
 import { booksApi } from './api.js';
 
 // Tiny client-side router. Reads window.location.pathname, listens to popstate.
@@ -75,10 +76,11 @@ function BooksNav({ path, navigate }) {
         {link('/books/import',         'Import',     '📥')}
         {link('/books/categorize',     'Categorize', '🗂️')}
         {link('/books/reports',        'Reports',    '📈')}
+        {link('/books/reconcile',      'Reconcile',  '✅')}
         {link('/books/settings/accounts', 'Settings', '⚙️')}
       </div>
       <div className="text-xs text-slate-400">
-        <span className="opacity-60">Phase D · Reports</span>
+        <span className="opacity-60">Phase E.1 · Reconciliation</span>
       </div>
     </div>
   );
@@ -171,6 +173,18 @@ export default function BooksShell() {
     page = <SettingsVendorRules navigate={navigate} />;
   } else if (path === '/books/reports' || path === '/books/reports/') {
     page = <Reports navigate={navigate} />;
+  } else if (path === '/books/reconcile' || path === '/books/reconcile/') {
+    page = <Reconcile navigate={navigate} />;
+  } else if (path.startsWith('/books/reconcile/')) {
+    const accountId = path.split('/')[3];
+    // Parse ?period=YYYY-MM from the query string
+    let initialPeriod = '';
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const p = params.get('period');
+      if (p && /^\d{4}-\d{2}$/.test(p)) initialPeriod = p;
+    } catch { /* SSR/no window */ }
+    page = <Reconcile navigate={navigate} accountId={accountId} initialPeriod={initialPeriod} />;
   } else {
     page = (
       <div className="p-8 text-slate-300">

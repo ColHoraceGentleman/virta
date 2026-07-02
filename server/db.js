@@ -486,6 +486,66 @@ safeExec('CREATE INDEX IF NOT EXISTS idx_journal_lines_account ON journal_lines(
   }
 }
 
+// =====================================================================
+// Virta Books — Phase E.1 (Account Reconciliation)
+// Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
+// Schema mirrors ACCOUNTING-v1.md §13:
+//   transactions.cleared_at — canonical "did the bank confirm this posted" flag
+//   reconciliations — one row per (account, period) reconciliation attempt
+//   reconciliation_clears — many-to-many between reconciliations and transactions
+// All three changes are NEW additions: ALTER TABLE ADD COLUMN for cleared_at,
+// CREATE TABLE IF NOT EXISTS for the two new tables. No DROP/CREATE/RENAME needed
+// (Hard Rule #2 / FK-disable trick is NOT required here because we're not rebuilding
+// any existing table — the children of transactions reference it, but we don't
+// touch the parent table shape).
+
+// 1. transactions.cleared_at — null = uncleared, timestamp = cleared
+{
+  const txnCols = db.prepare('PRAGMA table_info(transactions)').all().map(c => c.name);
+  if (!txnCols.includes('cleared_at')) {
+    try { db.exec('ALTER TABLE transactions ADD COLUMN cleared_at TEXT'); } catch { /* ignore */ }
+  }
+}
+safeExec('CREATE INDEX IF NOT EXISTS idx_transactions_cleared ON transactions(cleared_at)');
+
+// 2. reconciliations — one per (account_id, period) per status='draft'
+safeExec(`
+  CREATE TABLE IF NOT EXISTS reconciliations (
+    id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    account_id        TEXT NOT NULL REFERENCES accounts(id),
+    period_start      TEXT NOT NULL,
+    period_end        TEXT NOT NULL,
+    statement_balance REAL,
+    books_balance     REAL NOT NULL,
+    diff              REAL,
+    cleared_count     INTEGER,
+    status            TEXT NOT NULL DEFAULT 'draft'
+                      CHECK (status IN ('draft', 'reconciled', 'investigating')),
+    notes             TEXT,
+    reconciled_at     TEXT,
+    created_at        TEXT DEFAULT (datetime('now')),
+    updated_at        TEXT DEFAULT (datetime('now'))
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliations_account ON reconciliations(account_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliations_period ON reconciliations(period_start, period_end)');
+
+// 3. reconciliation_clears — which transactions have been cleared in which recon.
+// ON DELETE CASCADE on reconciliation_id: deleting a recon nukes its clears (the
+// transactions themselves are NOT touched — `cleared_at` on transactions stays
+// unless we explicitly clear it; this is per spec).
+safeExec(`
+  CREATE TABLE IF NOT EXISTS reconciliation_clears (
+    id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    reconciliation_id  TEXT NOT NULL REFERENCES reconciliations(id) ON DELETE CASCADE,
+    transaction_id     TEXT NOT NULL REFERENCES transactions(id),
+    cleared_at         TEXT DEFAULT (datetime('now')),
+    UNIQUE(reconciliation_id, transaction_id)
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliation_clears_recon ON reconciliation_clears(reconciliation_id)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliation_clears_txn  ON reconciliation_clears(transaction_id)');
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');

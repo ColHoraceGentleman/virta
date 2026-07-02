@@ -23,6 +23,7 @@ import booksTransactionsRouter from './routes/books/transactions.js';
 import booksVendorRulesRouter from './routes/books/vendor-rules.js';
 import booksSourceMappingsRouter from './routes/books/source-mappings.js';
 import booksReportsRouter from './routes/books/reports.js';
+import booksReconcileRouter from './routes/books/reconcile.js';
 import db from './db.js';
 import { startOverdueCron } from './services/overdueCron.js';
 
@@ -68,6 +69,7 @@ app.use('/api/v1/books/transactions', booksTransactionsRouter);
 app.use('/api/v1/books/vendor-rules', booksVendorRulesRouter);
 app.use('/api/v1/books/source-mappings', booksSourceMappingsRouter);
 app.use('/api/v1/books/reports', booksReportsRouter);
+app.use('/api/v1/books/reconcile', booksReconcileRouter);
 
 // Health check for books
 app.get('/api/v1/books/health', (req, res) => {
@@ -77,15 +79,17 @@ app.get('/api/v1/books/health', (req, res) => {
   const transactionCount = db.prepare('SELECT COUNT(*) as c FROM transactions').get().c;
   const vendorRuleCount = db.prepare('SELECT COUNT(*) as c FROM vendor_rules').get().c;
   const sourceMappingCount = db.prepare('SELECT COUNT(*) as c FROM csv_source_mappings').get().c;
+  const reconciliationCount = db.prepare('SELECT COUNT(*) as c FROM reconciliations').get().c;
   res.json({
     status: 'ok',
-    phase: 'D',
+    phase: 'E.1',
     accounts: accountCount,
     customers: customerCount,
     invoices: invoiceCount,
     transactions: transactionCount,
     vendor_rules: vendorRuleCount,
     source_mappings: sourceMappingCount,
+    reconciliations: reconciliationCount,
     timestamp: new Date().toISOString(),
   });
 });

@@ -140,4 +140,14 @@ export const booksApi = {
   // Schedule C returns a ZIP blob. Caller is expected to download it
   // (window.location.href) — but we expose this for completeness.
   scheduleCUrl: (year) => `${BASE}/reports/schedule-c?year=${encodeURIComponent(year)}`,
+
+  // Phase E.1: Reconciliation
+  listReconciliations: () => request('GET', '/reconcile'),
+  createReconciliation: (data) => request('POST', '/reconcile', data),
+  getReconciliation: (id) => request('GET', `/reconcile/${id}`),
+  updateReconciliation: (id, data) => request('PATCH', `/reconcile/${id}`, data),
+  clearTransaction: (reconId, transactionId) =>
+    request('POST', `/reconcile/${reconId}/clear`, { transaction_id: transactionId }),
+  unClearTransaction: (reconId, transactionId) =>
+    request('DELETE', `/reconcile/${reconId}/clear/${transactionId}`),
 };
