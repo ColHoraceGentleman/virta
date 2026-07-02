@@ -27,13 +27,9 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { name, color, darkColor, projectId } = req.body;
+    const { name, color, projectId } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required', code: 'VALIDATION_ERROR' });
-    // Light validation: darkColor must be a string if provided (trust the Rusty-maintained registry).
-    if (darkColor !== undefined && darkColor !== null && typeof darkColor !== 'string') {
-      return res.status(400).json({ error: 'darkColor must be a string', code: 'VALIDATION_ERROR' });
-    }
-    const category = createCategory({ name, color, darkColor, projectId });
+    const category = createCategory({ name, color, projectId });
     res.json({ data: category });
   } catch (err) {
     if (err.message.includes('UNIQUE')) {

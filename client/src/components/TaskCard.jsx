@@ -10,15 +10,6 @@ const PRIORITY_COLORS_ON_COLOR = {
   urgent: 'bg-red-600/90 border border-white text-white',
 };
 
-// On category cards rendered with a dark color (Tailwind 600-level). Borders + text
-// flip to white so the pills read against the darker background.
-const PRIORITY_COLORS_ON_DARK_BG = {
-  low:    'bg-transparent border border-white/60 text-white/80',
-  medium: 'bg-transparent border border-white/60 text-white/80',
-  high:   'border text-yellow-300',
-  urgent: 'bg-red-600 border border-white text-white',
-};
-
 // On default dark cards
 const PRIORITY_COLORS_DEFAULT_DARK = {
   low:    'bg-transparent border border-slate-400 text-slate-400',
@@ -67,41 +58,28 @@ export default function TaskCard({ task, onClick, isDragging, categories, darkMo
   const category = categories?.find(c => c.id === task.category_id);
   const hasCategory = !!category;
 
-  // In dark mode, use the category's dark_color (Tailwind 600-level) if set; otherwise
-  // fall back to the bright 300-level light color. This keeps the light-mode render
-  // identical to before while giving category cards a darker, easier-on-the-eyes
-  // background in dark mode.
-  const useDarkBg = hasCategory && darkMode && category.dark_color;
-
   // Card background
   const cardBg = hasCategory
-    ? (useDarkBg ? category.dark_color : category.color)
+    ? category.color
     : darkMode ? DEFAULT_CARD_DARK : DEFAULT_CARD_LIGHT;
 
-  // Text colors — light-on-dark when on a dark-mode category color, dark-on-light
-  // for the 300-level color (and mode-aware on default cards).
-  const titleColor   = hasCategory ? (useDarkBg ? 'text-white'   : 'text-gray-800')   : darkMode ? 'text-slate-100'  : 'text-slate-800';
-  const bodyColor    = hasCategory ? (useDarkBg ? 'text-white/70' : 'text-gray-600')  : darkMode ? 'text-slate-400'  : 'text-slate-500';
+  // Text colors — always dark on category cards; mode-aware on default cards
+  const titleColor   = hasCategory ? 'text-gray-800'   : darkMode ? 'text-slate-100'  : 'text-slate-800';
+  const bodyColor    = hasCategory ? 'text-gray-600'   : darkMode ? 'text-slate-400'  : 'text-slate-500';
   const dateColor    = isOverdue   ? 'text-red-600 font-semibold'
-                     : isDueToday  ? (useDarkBg ? 'text-amber-300' : 'text-amber-600')
-                     : hasCategory ? (useDarkBg ? 'text-white/60' : 'text-gray-500')
+                     : isDueToday  ? 'text-amber-600'
+                     : hasCategory ? 'text-gray-500'
                      : darkMode    ? 'text-slate-400'
                      :               'text-slate-500';
-  const borderColor  = hasCategory ? (useDarkBg ? 'border-white/10' : 'border-black/10') : darkMode ? 'border-slate-700' : 'border-slate-200';
+  const borderColor  = hasCategory ? 'border-black/10' : darkMode ? 'border-slate-700' : 'border-slate-200';
   const shadowHover  = hasCategory ? 'hover:shadow-black/20' : darkMode ? 'hover:shadow-black/30' : 'hover:shadow-slate-300/50';
   const priorityColors = hasCategory
-    ? (useDarkBg ? PRIORITY_COLORS_ON_DARK_BG : PRIORITY_COLORS_ON_COLOR)
+    ? PRIORITY_COLORS_ON_COLOR
     : darkMode ? PRIORITY_COLORS_DEFAULT_DARK : PRIORITY_COLORS_DEFAULT_LIGHT;
 
-  // Assignee bubble colors on category cards — flip to light-overlay in dark-bg mode
-  const assigneeBg     = hasCategory
-    ? (useDarkBg ? 'bg-white/20 border-white/10 text-white'  : 'bg-black/20 border-black/10 text-gray-800')
-    : darkMode    ? 'bg-indigo-700 border-indigo-600 text-indigo-200'
-    :               'bg-indigo-100 border-indigo-200 text-indigo-700';
-  const extraBubbleBg  = hasCategory
-    ? (useDarkBg ? 'bg-white/10 border-white/10 text-white/80' : 'bg-black/10 border-black/10 text-gray-700')
-    : darkMode    ? 'bg-slate-600 border-slate-500 text-slate-300'
-    :               'bg-slate-200 border-slate-300 text-slate-600';
+  // Assignee bubble colors on category cards
+  const assigneeBg     = hasCategory ? 'bg-black/20 border-black/10 text-gray-800' : darkMode ? 'bg-indigo-700 border-indigo-600 text-indigo-200' : 'bg-indigo-100 border-indigo-200 text-indigo-700';
+  const extraBubbleBg  = hasCategory ? 'bg-black/10 border-black/10 text-gray-700' : darkMode ? 'bg-slate-600 border-slate-500 text-slate-300' : 'bg-slate-200 border-slate-300 text-slate-600';
 
   const assigneeList   = Array.isArray(task.assignees) ? task.assignees : [];
   const displayAssignees = assigneeList.slice(0, 3);

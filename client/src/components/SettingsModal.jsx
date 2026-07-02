@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { CATEGORY_COLORS, DARK_CATEGORY_COLORS } from '../lib/colors.js';
+import { CATEGORY_COLORS } from '../lib/colors.js';
 import { api } from '../lib/api.js';
 
 const DEFAULT_PROJECT_KEY = 'virta-default-project';
 
 // ── Color Swatch ─────────────────────────────────────────────────────────────
-function ColorSwatch({ value, onChange, palette = CATEGORY_COLORS }) {
+function ColorSwatch({ value, onChange }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {palette.map(c => (
+      {CATEGORY_COLORS.map(c => (
         <button
           key={c.id}
           type="button"
@@ -196,28 +196,21 @@ function CategoryRow({ category, darkMode, onUpdate, onDelete, onReorder, isFirs
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color);
-  const [darkColor, setDarkColor] = useState(category.dark_color || null);
 
   const textCls   = darkMode ? 'text-slate-100' : 'text-slate-900';
   const rowBg     = darkMode ? 'bg-slate-700/50' : 'bg-slate-100';
   const inputCls  = darkMode ? 'bg-slate-600 border-slate-500 text-slate-100' : 'bg-white border-slate-300 text-slate-800';
   const btnCls    = darkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-400 hover:text-slate-600';
   const delCls    = darkMode ? 'text-slate-400 hover:text-red-400' : 'text-slate-400 hover:text-red-500';
-  const subLabelCls = darkMode ? 'text-slate-400' : 'text-slate-500';
 
   async function handleSave(newName) {
-    await onUpdate(category.id, { name: newName, color, darkColor });
+    await onUpdate(category.id, { name: newName, color });
     setEditing(false);
   }
 
   async function handleColorChange(c) {
     setColor(c);
     await onUpdate(category.id, { name, color: c });
-  }
-
-  async function handleDarkColorChange(c) {
-    setDarkColor(c);
-    await onUpdate(category.id, { name, darkColor: c });
   }
 
   async function handleDelete() {
@@ -237,19 +230,7 @@ function CategoryRow({ category, darkMode, onUpdate, onDelete, onReorder, isFirs
             onKeyDown={e => { if (e.key === 'Enter') handleSave(name); if (e.key === 'Escape') setEditing(false); }}
             className={`w-full border rounded px-2 py-1 text-sm focus:outline-none focus:border-indigo-500 ${inputCls}`}
           />
-          <div>
-            <p className={`text-[10px] uppercase tracking-wide mb-1 ${subLabelCls}`}>Color (light mode)</p>
-            <ColorSwatch value={color} onChange={c => { setColor(c); }} />
-          </div>
-          <div>
-            <p className={`text-[10px] uppercase tracking-wide mb-1 ${subLabelCls}`}>Dark mode color (optional)</p>
-            <ColorSwatch value={darkColor} onChange={setDarkColor} palette={DARK_CATEGORY_COLORS} />
-            {darkColor && (
-              <button type="button" onClick={() => setDarkColor(null)} className={`text-[10px] mt-1 ${subLabelCls} hover:underline`}>
-                Clear
-              </button>
-            )}
-          </div>
+          <ColorSwatch value={color} onChange={c => { setColor(c); }} />
           <div className="flex gap-2 pt-1">
             <button onClick={() => handleSave(name)} className="text-green-400 hover:text-green-300 text-xs">Save</button>
             <button onClick={() => setEditing(false)} className={`text-xs ${btnCls}`}>Cancel</button>
@@ -260,9 +241,6 @@ function CategoryRow({ category, darkMode, onUpdate, onDelete, onReorder, isFirs
           <button onClick={() => onReorder(category.id, 'up')} disabled={isFirst} title="Move up" className={`text-xs shrink-0 ${isFirst ? 'opacity-20 cursor-not-allowed' : btnCls}`}>↑</button>
           <button onClick={() => onReorder(category.id, 'down')} disabled={isLast} title="Move down" className={`text-xs shrink-0 ${isLast ? 'opacity-20 cursor-not-allowed' : btnCls}`}>↓</button>
           <button onClick={() => setEditing(true)} title="Change color" className="w-4 h-4 rounded-full shrink-0 transition-transform hover:scale-110" style={{ backgroundColor: category.color }} />
-          {category.dark_color && (
-            <button onClick={() => setEditing(true)} title={`Dark mode: ${category.dark_color}`} className="w-3 h-3 rounded-full shrink-0 transition-transform hover:scale-110 border border-white/30" style={{ backgroundColor: category.dark_color }} />
-          )}
           <span className={`flex-1 text-sm truncate ${textCls}`}>{category.name}</span>
           <button onClick={() => setEditing(true)} title="Edit" className={`text-xs shrink-0 ${btnCls}`}>✏️</button>
           <button onClick={handleDelete} title="Delete" className={`text-xs shrink-0 ${delCls}`}>🗑️</button>
@@ -300,7 +278,6 @@ export default function SettingsModal({
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState(CATEGORY_COLORS[0].hex);
-  const [newCatDarkColor, setNewCatDarkColor] = useState(null);
 
     // Calendar feeds section
   const [feeds, setFeeds] = useState([]);
@@ -416,10 +393,9 @@ export default function SettingsModal({
     if (!newCatName.trim()) return;
     setSaving(true);
     try {
-      await onCreateCategory({ name: newCatName.trim(), color: newCatColor, darkColor: newCatDarkColor });
+      await onCreateCategory({ name: newCatName.trim(), color: newCatColor });
       setNewCatName('');
       setNewCatColor(CATEGORY_COLORS[0].hex);
-      setNewCatDarkColor(null);
       setShowCategoryForm(false);
     } finally {
       setSaving(false);
@@ -733,22 +709,10 @@ export default function SettingsModal({
                           placeholder="Category name..."
                           className={`w-full border rounded px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-500 ${formInputCls}`}
                         />
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-wide mb-1 ${subLabelCls}`}>Color (light mode)</p>
-                          <ColorSwatch value={newCatColor} onChange={setNewCatColor} />
-                        </div>
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-wide mb-1 ${subLabelCls}`}>Dark mode color (optional)</p>
-                          <ColorSwatch value={newCatDarkColor} onChange={setNewCatDarkColor} palette={DARK_CATEGORY_COLORS} />
-                          {newCatDarkColor && (
-                            <button type="button" onClick={() => setNewCatDarkColor(null)} className={`text-[10px] mt-1 ${subLabelCls} hover:underline`}>
-                              Clear
-                            </button>
-                          )}
-                        </div>
+                        <ColorSwatch value={newCatColor} onChange={setNewCatColor} />
                         <div className="flex gap-2">
                           <button type="submit" disabled={saving || !newCatName.trim()} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-lg">Create</button>
-                          <button type="button" onClick={() => { setShowCategoryForm(false); setNewCatName(''); setNewCatColor(CATEGORY_COLORS[0].hex); setNewCatDarkColor(null); }} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${darkMode ? 'border-slate-600 text-slate-400 hover:text-slate-200' : 'border-slate-300 text-slate-500 hover:text-slate-700'}`}>Cancel</button>
+                          <button type="button" onClick={() => { setShowCategoryForm(false); setNewCatName(''); setNewCatColor(CATEGORY_COLORS[0].hex); }} className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${darkMode ? 'border-slate-600 text-slate-400 hover:text-slate-200' : 'border-slate-300 text-slate-500 hover:text-slate-700'}`}>Cancel</button>
                         </div>
                       </form>
                     ) : (
