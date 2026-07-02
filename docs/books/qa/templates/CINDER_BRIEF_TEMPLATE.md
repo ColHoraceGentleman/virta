@@ -77,7 +77,8 @@ What you test before declaring done. Always include:
 1. **Schema check** (if schema changed): `[PRAGMA queries that confirm the new shape]`.
 2. **Smoke tests** (the actual demo): `[3-5 scenarios, each with: action, expected result, verification command]`.
 3. **No-regression checks**: pick 1-2 behaviors from QA.md that are *adjacent* to your changes and confirm they still work.
-4. **Live health**: confirm service health endpoint after restart.
+4. **Visual confirmation** (REQUIRED for any change to rendering, color, layout, typography, dark mode, or theme handling): actually open the affected view in the browser. Confirm the change looks right **in both light and dark mode** if the app supports dark mode. Capture a screenshot or a one-line note describing what you saw. Do NOT just verify the code path is reachable — the runtime rendering is the test. (Cinder shipped dark-mode category colors in 2026-07 that looked brighter than expected; the cause was a missed dark-mode toggle, not a code bug. This rule is the fix.)
+5. **Live health**: confirm service health endpoint after restart.
 
 ---
 

@@ -142,3 +142,4 @@ Cross-project conventions (so future projects can inherit):
 
 - 2026-07-01 — Initial draft. Roles (Cinder appends, Rusty curates, Echo executes), Playwright as canonical tool, behavior ID convention, failure-artifact spec.
 - 2026-07-01 — Added CINDER_BRIEF_TEMPLATE.md codifying Hard Rules (e.g., STOP on data loss, FK enforcement + DROP TABLE interaction) and requiring Test coverage section in every Cinder report.
+- 2026-07-01 — Added "Visual confirmation" requirement to CINDER_BRIEF_TEMPLATE's Verification spec (item #4). For any rendering/UI change, open the affected view in the browser in both light and dark mode. Lesson from the 2026-07 dark-mode-category-colors delivery: smoke tests that only check the code path miss user-visible state when a project-level dark mode toggle (or similar) is the gate.
