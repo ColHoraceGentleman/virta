@@ -546,6 +546,67 @@ safeExec(`
 safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliation_clears_recon ON reconciliation_clears(reconciliation_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliation_clears_txn  ON reconciliation_clears(transaction_id)');
 
+// =====================================================================
+// Virta Books — Phase E.2 (Reconciliation Redesign + Mutation Detection)
+// Source of truth: /Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/ACCOUNTING-E2.md
+//
+// All changes are ADDITIVE per Hard Rule #2 (no FK-disable trick needed).
+// 1. reconciliations.as_of_date — single-anchor for the new reconcile workflow
+//    (replaces the calendar-month period concept).
+// 2. reconciliations stale-detection columns — populated by the mutation hook
+//    when a cleared transaction is mutated after a `reconciled` recon committed.
+// 3. accounts.last_reconciled_at / last_reconciled_balance — per-account gate
+//    used by the new forward-only `as_of_date > last_reconciled_at` check.
+// 4. Indexes for the staleness query and the as_of_date lookups.
+//
+// The existing `reconciliations.status` CHECK constraint stays — it allows
+// 'draft' | 'reconciled' | 'investigating'. E.2 only WRITES 'draft' or
+// 'reconciled'. The 'investigating' value is read-only historical (for any
+// E.1 rows that may exist).
+// =====================================================================
+
+// 1. reconciliations.as_of_date (TEXT) + backfill from period_end
+{
+  const reconCols = db.prepare('PRAGMA table_info(reconciliations)').all().map(c => c.name);
+  if (!reconCols.includes('as_of_date')) {
+    try { db.exec('ALTER TABLE reconciliations ADD COLUMN as_of_date TEXT'); } catch { /* ignore */ }
+  }
+  // Backfill every existing row: prefer period_end, fall back to '1970-01-01' for any NULLs.
+  // This is safe to re-run; COALESCE means rows that already have as_of_date are skipped.
+  try {
+    db.prepare(`UPDATE reconciliations SET as_of_date = COALESCE(period_end, '1970-01-01') WHERE as_of_date IS NULL`).run();
+  } catch { /* ignore — fresh DB or table not yet created */ }
+}
+
+// 2. reconciliations stale-detection columns
+{
+  const reconCols = db.prepare('PRAGMA table_info(reconciliations)').all().map(c => c.name);
+  if (!reconCols.includes('stale')) {
+    try { db.exec('ALTER TABLE reconciliations ADD COLUMN stale INTEGER DEFAULT 0'); } catch { /* ignore */ }
+  }
+  if (!reconCols.includes('stale_reason')) {
+    try { db.exec('ALTER TABLE reconciliations ADD COLUMN stale_reason TEXT'); } catch { /* ignore */ }
+  }
+  if (!reconCols.includes('stale_at')) {
+    try { db.exec('ALTER TABLE reconciliations ADD COLUMN stale_at TEXT'); } catch { /* ignore */ }
+  }
+}
+
+// 3. accounts.last_reconciled_at / last_reconciled_balance
+{
+  const acctCols = db.prepare('PRAGMA table_info(accounts)').all().map(c => c.name);
+  if (!acctCols.includes('last_reconciled_at')) {
+    try { db.exec('ALTER TABLE accounts ADD COLUMN last_reconciled_at TEXT'); } catch { /* ignore */ }
+  }
+  if (!acctCols.includes('last_reconciled_balance')) {
+    try { db.exec('ALTER TABLE accounts ADD COLUMN last_reconciled_balance REAL'); } catch { /* ignore */ }
+  }
+}
+
+// 4. Indexes for the staleness query path and the as_of_date lookups
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliations_as_of ON reconciliations(account_id, as_of_date)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_reconciliations_stale ON reconciliations(account_id, stale)');
+
 // Indexes
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id)');
 safeExec('CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date)');

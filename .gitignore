@@ -67,3 +67,6 @@ models.json.bak
 # OAuth / API credentials — never commit
 google-credentials.json
 *-credentials.json
+
+# Books QA test artifacts (Playwright screenshots/logs) — never commit
+docs/books/qa/runs/

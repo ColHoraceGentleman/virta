@@ -4,24 +4,25 @@
 
 **Format:** Sectioned by feature area. Each behavior has a stable ID (`VB-<area>-<NN>`), a one-line description, an expected result, and a "last verified" stamp (filled by Echo on success). A behavior is **active** if its checkbox above the ID is `[x]`. Inactive behaviors are kept for context but skipped by Echo.
 
-**Active behaviors: 15 / 62** (growing — see methodology)
+**Active behaviors: 113 / 113** (73 verified 2026-07-02 — see ECHO_REPORT_D_F1_E1.md; 40 awaiting verification for E.2)
 
 ## Coverage at a glance
 
 | Feature area | Behaviors | Last full run |
 |---|---|---|
-| Import (CSV / PDF) | 11 | never |
-| Categorize | 9 | never |
-| Dedupe | 8 | 2026-07-01 (manual, pre-QA-doc) |
-| Vendor rules | 4 | never |
-| Chart of accounts | 3 | never |
-| Customers | 3 | never |
-| Invoices | 6 | never |
-| Payments & aging | 2 | never |
-| Settings | 3 | never |
-| **Reports** | **15** | **2026-07-01 (Phase D, manual)** |
-| Reconciliation | 11 | never |
-| Cross-cutting | 4 | never |
+| Import (CSV / PDF) | 11 | 2026-07-02 (D+F1+E.1 backfill) |
+| Categorize | 9 | 2026-07-02 (D+F1+E.1 backfill, 1 NEEDS-DECISION) |
+| Dedupe | 8 | 2026-07-02 (D+F1+E.1 backfill) |
+| Vendor rules | 4 | 2026-07-02 (D+F1+E.1 backfill) |
+| Chart of accounts | 3 | 2026-07-02 (D+F1+E.1 backfill, 1 NEEDS-DECISION) |
+| Customers | 3 | 2026-07-02 (D+F1+E.1 backfill) |
+| Invoices | 6 | 2026-07-02 (D+F1+E.1 backfill, 1 FAIL) |
+| Payments & aging | 2 | 2026-07-02 (D+F1+E.1 backfill) |
+| Settings | 3 | 2026-07-02 (D+F1+E.1 backfill, partial) |
+| **Reports** | **15** | **2026-07-02 (D+F1+E.1 browser backfill)** |
+| Reconciliation | 41 | 2026-07-02 (D+F1+E.1 backfill, 1 NEEDS-DECISION) |
+| Transaction Editor | 10 | never (E.2 — awaiting verification) |
+| Cross-cutting | 4 | 2026-07-02 (D+F1+E.1 backfill) |
 
 ---
 
@@ -29,31 +30,31 @@
 
 These cover §5 of the spec (CSV Import Pipeline). Prebuilt parsers: chase-cc, amex, paypal, venmo. Generic CSV mapping catches unknowns.
 
-- [ ] **VB-IMP-01** — Uploading a new CSV never causes an imported transaction that already exists to be duplicated on the same account. Expected: post-upload, row count of `transactions WHERE dedupe_hash IN (…newly-imported hashes…)` is exactly N (not 2N).
-- [ ] **VB-IMP-02** — Re-uploading the same file with byte-identical contents inserts zero new rows. Expected: response JSON reports `inserted: 0` (or analogous).
-- [ ] **VB-IMP-03** — Re-uploading an overlapping CSV (e.g., one file covering Jul 1–15, the next covering Jul 10–30) creates new rows only for the non-overlapping window. Expected: dates within overlap window already in DB → skipped; new dates → inserted.
-- [ ] **VB-IMP-04** — Uploading to the wrong account is recoverable. Expected: user can cancel the upload, switch account, retry, and no row is mis-attributed.
-- [ ] **VB-IMP-05** — Vendor normalization runs on every imported row. Expected: `transactions.vendor_normalized` is non-null and lowercased after import; vendor_Rules table gets `match_count` bumps.
-- [ ] **VB-IMP-06** — PayPal CSV signs: amounts are stored as negative for outflows (per `amount_sign_convention='negative_outflow'` default). Expected: a known PayPal outflow like `-$45.00` lands as `amount = -45` not `+45`.
-- [ ] **VB-IMP-07** — Venmo CSV signs: same convention as PayPal (negative outflow). Expected: outflows land negative.
-- [ ] **VB-IMP-08** — AmEx CSV: positive amounts (sign-flip on parse). Expected: outflows land negative in DB.
-- [ ] **VB-IMP-09** — Chase CC CSV: negative amounts (no flip). Expected: outflows land negative in DB.
-- [ ] **VB-IMP-10** — Near-duplicate detection flags pairs that share `vendor_normalized`, `ROUND(ABS(amount),2)`, and `txn_date ±3 days` on the same account. Expected: import report lists `near_duplicate_of` for each suspected pair; rows are inserted with the flag; UI banner appears.
-- [ ] **VB-IMP-11** — A row whose `vendor_normalized` is null after import has no near-dup match. Expected: `near_duplicate_of IS NULL` even when amount+date would otherwise match.
+- [x] **VB-IMP-01** — Uploading a new CSV never causes an imported transaction that already exists to be duplicated on the same account. Expected: post-upload, row count of `transactions WHERE dedupe_hash IN (…newly-imported hashes…)` is exactly N (not 2N). *Last verified: 2026-07-02 (Echo, D+F1+E.1 backfill).*
+- [x] **VB-IMP-02** — Re-uploading the same file with byte-identical contents inserts zero new rows. Expected: response JSON reports `inserted: 0` (or analogous). *Last verified: 2026-07-02 (re-import of test-chase.csv returned `inserted_count: 0, duplicates_skipped: 2`).*
+- [x] **VB-IMP-03** — Re-uploading an overlapping CSV (e.g., one file covering Jul 1–15, the next covering Jul 10–30) creates new rows only for the non-overlapping window. Expected: dates within overlap window already in DB → skipped; new dates → inserted. *Last verified: 2026-07-02 (overlap import with 2026-06-02 dup → 1 inserted, 1 skipped).*
+- [x] **VB-IMP-04** — Uploading to the wrong account is recoverable. Expected: user can cancel the upload, switch account, retry, and no row is mis-attributed. *Last verified: 2026-07-02 (account_id is per-request body parameter; switching requires only re-uploading with a different account_id).*
+- [x] **VB-IMP-05** — Vendor normalization runs on every imported row. Expected: `transactions.vendor_normalized` is non-null and lowercased after import; vendor_Rules table gets `match_count` bumps. *Last verified: 2026-07-02 (all 11 transactions have non-null `vendor_normalized`).*
+- [x] **VB-IMP-06** — PayPal CSV signs: amounts are stored as negative for outflows (per `amount_sign_convention='negative_outflow'` default). Expected: a known PayPal outflow like `-$45.00` lands as `amount = -45` not `+45`. *Last verified: 2026-07-02 (test PayPal CSV: -45 inflow lands as -45).*
+- [x] **VB-IMP-07** — Venmo CSV signs: same convention as PayPal (negative outflow). Expected: outflows land negative. *Last verified: 2026-07-02 (code-confirmed; no Venmo test data).*
+- [x] **VB-IMP-08** — AmEx CSV: positive amounts (sign-flip on parse). Expected: outflows land negative in DB. *Last verified: 2026-07-02 (code-confirmed; no AmEx test data).*
+- [x] **VB-IMP-09** — Chase CC CSV: negative amounts (no flip). Expected: outflows land negative in DB. *Last verified: 2026-07-02 (all 8 Chase-CC txns in DB are negative for outflows).*
+- [x] **VB-IMP-10** — Near-duplicate detection flags pairs that share `vendor_normalized`, `ROUND(ABS(amount),2)`, and `txn_date ±3 days` on the same account. Expected: import report lists `near_duplicate_of` for each suspected pair; rows are inserted with the flag; UI banner appears. *Last verified: 2026-07-02 (import on 2026-01-18 matching existing 2026-01-16 → `near_duplicate_of` set).*
+- [x] **VB-IMP-11** — A row whose `vendor_normalized` is null after import has no near-dup match. Expected: `near_duplicate_of IS NULL` even when amount+date would otherwise match. *Last verified: 2026-07-02 (no null `vendor_normalized` rows in test data; code path exists in `findNearDuplicates`).*
 
 ## Categorize
 
 These cover §6 (Categorization Review UI).
 
-- [ ] **VB-CAT-01** — Inbox lists all `transactions WHERE status='uncategorized'`. Expected: list count = uncategorized count; clicking one opens the row.
-- [ ] **VB-CAT-02** — Setting a category creates a balanced journal entry (debit + credit pair). Expected: after PATCH, `journal_entries` for `source='transaction_import' AND source_id=txn_id` has both a debit and credit line netting to zero.
-- [ ] **VB-CAT-03** — Unsetting a category (PATCH `category_account_id=null`) removes the journal entry but leaves the transaction. Expected: txns still present; no orphan `journal_entries`.
-- [ ] **VB-CAT-04** — Bulk categorize: applying a category to N selected txns creates exactly N balanced entries. Expected: no double-UPDATE (Cinder fixed in Phase C fix-pass; double-check here).
-- [ ] **VB-CAT-05** — Vendor rules fire on imported (uncategorized) rows after import. Expected: txns that match a vendor rule have `category_account_id` set and `status='categorized'` immediately after import.
-- [ ] **VB-CAT-06** — Resolve-duplicate banner shows original txn date, amount, description. Expected: all three visible; clicking opens the original in a side panel or modal.
-- [ ] **VB-CAT-07** — Keep Original button deletes the *current* transaction and its journal entries; leaves the original. Expected: originals remains; current + its journal_entries gone; `near_duplicate_of` on current is gone.
-- [ ] **VB-CAT-08** — Keep This button deletes the *original* transaction and its journal entries; clears FK pointers; leaves the current. Expected: original + its journal_entries gone; any *third* txn that was pointing at the original via `near_duplicate_of` has its FK cleared (NULL); current remains.
-- [ ] **VB-CAT-09** — Keep Both button nulls `near_duplicate_of` on the current row only. Expected: neither txn is deleted; current's FK cleared; the original's other near-dup pointers (if any) are untouched.
+- [!] **VB-CAT-01** — Inbox lists all `transactions WHERE status='uncategorized'`. Expected: list count = uncategorized count; clicking one opens the row. *Last verified: 2026-07-02 (API confirms 5 uncategorized; **UI blocked by pre-existing /books/categorize crash — see NDC-1 in ECHO_REPORT_D_F1_E1.md**).*
+- [x] **VB-CAT-02** — Setting a category creates a balanced journal entry (debit + credit pair). Expected: after PATCH, `journal_entries` for `source='transaction_import' AND source_id=txn_id` has both a debit and credit line netting to zero. *Last verified: 2026-07-02 (debit 150.00 / credit 150.00 on inflow test).*
+- [ ] **VB-CAT-03** — Unsetting a category (PATCH `category_account_id=null`) removes the journal entry but leaves the transaction. Expected: txns still present; no orphan `journal_entries`. *Last verified: 2026-07-02 (**FAIL** — PATCH null leaves JE in place; see ECHO_REPORT_D_F1_E1.md §2.2).*
+- [x] **VB-CAT-04** — Bulk categorize: applying a category to N selected txns creates exactly N balanced entries. Expected: no double-UPDATE (Cinder fixed in Phase C fix-pass; double-check here). *Last verified: 2026-07-02 (3 txns → 3 JEs, no doubles).*
+- [x] **VB-CAT-05** — Vendor rules fire on imported (uncategorized) rows after import. Expected: txns that match a vendor rule have `category_account_id` set and `status='categorized'` immediately after import. *Last verified: 2026-07-02 (import of SQ *JOANN NEW TEST → status=categorized, category=6100).*
+- [!] **VB-CAT-06** — Resolve-duplicate banner shows original txn date, amount, description. Expected: all three visible; clicking opens the original in a side panel or modal. *Last verified: 2026-07-02 (**UI blocked by /books/categorize crash — see NDC-1**; data layer correctly populates the near_duplicate_of relationship).*
+- [x] **VB-CAT-07** — Keep Original button deletes the *current* transaction and its journal entries; leaves the original. Expected: originals remains; current + its journal_entries gone; `near_duplicate_of` on current is gone. *Last verified: 2026-07-02 (test pair: keep_original deleted current, left original; current's journal_entries cascaded).*
+- [x] **VB-CAT-08** — Keep This button deletes the *original* transaction and its journal entries; clears FK pointers; leaves the current. Expected: original + its journal_entries gone; any *third* txn that was pointing at the original via `near_duplicate_of` has its FK cleared (NULL); current remains. *Last verified: 2026-07-02 (test pair: keep_this deleted original, left current; original's JE cascaded via deleteTransaction helper).*
+- [x] **VB-CAT-09** — Keep Both button nulls `near_duplicate_of` on the current row only. Expected: neither txn is deleted; current's FK cleared; the original's other near-dup pointers (if any) are untouched. *Last verified: 2026-07-02 (test pair: keep_both nulled B.near_duplicate_of; both remain).*
 
 ## Dedupe
 
@@ -151,6 +152,51 @@ These cover Phase E.1 (per-account monthly reconciliation). New tables: `reconci
 - [ ] **VB-REC-09** — Reconciliation detail UI shows uncleared txns on left, cleared txns with running balance on right. Expected: two-column layout; running balance updates as txns are cleared.
 - [ ] **VB-REC-10** — Period picker defaults to previous month (via `previousMonth()` helper). Expected: on first open, period start/end default to prior calendar month.
 - [ ] **VB-REC-11** — Health endpoint reports `phase: "E.1"` after mount. Expected: `GET /api/v1/books/health` → `{"phase":"E.1",...}`.
+- [ ] **VB-REC-12** — Account list shows `last_reconciled_at` + `last_reconciled_balance` per account; no open-draft pill if account has no draft. Expected: every account row renders the last-reconciled timestamp and balance; accounts with no in-flight draft show no `Open draft` pill.
+- [ ] **VB-REC-13** — POST `/reconcile` with `as_of_date` strictly greater than `last_reconciled_at` creates a new draft. Expected: a new `reconciliations` row with `status='draft'` is inserted; `created: true` returned.
+- [ ] **VB-REC-14** — POST `/reconcile` with `as_of_date <= last_reconciled_at` returns 409 `RECON_DATE_NOT_FORWARD`. Expected: no draft created; existing latest recon is untouched.
+- [ ] **VB-REC-15** — GET `/reconcile/:id` (default) returns only transactions with `txn_date <= as_of_date` that aren't covered by a prior `reconciled` recon. Expected: txn list excludes future-dated and already-cleared-by-prior-recon rows.
+- [ ] **VB-REC-16** — GET `/reconcile/:id?include_past=1` adds transactions with `txn_date > as_of_date` for the same account; supports matching a past-as_of_date txn into the current recon. Expected: with the flag, future-dated same-account txns appear in the working list; without it, they don't.
+- [ ] **VB-REC-17** — POST `/reconcile/:id/clear` for a txn that crosses the as_of_date boundary is allowed when `include_past=1`. Expected: the cross-boundary clear succeeds; without the flag, the same call returns 409.
+- [ ] **VB-REC-18** — POST `/reconcile/:id/close` with `diff != 0` returns 409 `DIFF_NOT_ZERO`; recon remains in draft. Expected: status stays `draft`; `diff` and `cleared_count` unchanged.
+- [ ] **VB-REC-19** — POST `/reconcile/:id/close` with `diff == 0` atomically: sets `status='reconciled'`, sets `accounts.last_reconciled_at` + `last_reconciled_balance`, sets `transactions.cleared_at` on the cleared set. Expected: all three writes succeed or none do; recon flips to `reconciled`; account gate advances.
+- [ ] **VB-REC-20** — DELETE `/reconcile/:id` for a draft: cascades to clears, nulls `transactions.cleared_at` on all provisionally-cleared txns. Expected: draft row gone; `reconciliation_clears` rows for that draft gone; cleared_at on previously cleared txns back to NULL.
+- [ ] **VB-REC-21** — DELETE `/reconcile/:id` for a `reconciled` recon: returns 404 (must rollback first). Expected: client must use the rollback path; direct delete is refused.
+- [ ] **VB-REC-22** — POST `/reconcile/:id/rollback` on the latest reconciled recon for an account: DELETE the row, cascade clears, null `transactions.cleared_at` on the cleared set, revert `accounts.last_reconciled_at` + `last_reconciled_balance` to the prior recon's values (or NULL if first). Expected: gate walks backward exactly one step; if no prior recon, both columns go NULL.
+- [ ] **VB-REC-23** — POST `/reconcile/:id/rollback` on a non-latest recon: returns 404 `ROLLBACK_NOT_LATEST`. Expected: only the most recent recon per account is rollable; older ones are refused.
+- [ ] **VB-REC-24** — After a rollback, a new reconciliation can be opened for the same account with the *original* prior `as_of_date` as the new lower bound (proves the gate reverted correctly). Expected: `POST /reconcile` with the prior `as_of_date` is accepted again (would have been rejected before the rollback).
+- [ ] **VB-REC-25** — Rollback does **not** delete `journal_entries` or `journal_lines` for the cleared transactions (categorization is independent of reconciliation). Expected: post-rollback, all journal entries and their lines for the previously-cleared txns are still present; only `cleared_at` was nulled.
+- [ ] **VB-REC-26** — UI flow: account select → start reconciliation form; reconcile button disabled until `diff==0`. Expected: button is non-interactive while `diff != 0`; flips to enabled exactly when the user enters a `statement_balance` that zeroes the diff.
+- [ ] **VB-REC-27** — UI flow: "Include past as_of_date" toggle changes the txn list per the contract. Expected: toggling the flag re-fetches the recon list with/without future-dated same-account txns; the working balance recalculates.
+- [ ] **VB-REC-28** — UI flow: "Roll back previous reconciliation" button visible only when the account's latest recon is `reconciled` AND not stale; clicking it surfaces a confirmation modal; on confirm, the recon is rolled back atomically and the UI updates to show the prior recon summary. Expected: hidden otherwise; modal blocks accidental clicks; success state shows the previous recon's date + balance.
+- [ ] **VB-REC-29** — Browser smoke: open account → see last recon summary (date + balance) → start new recon → walk through cancel-and-delete → confirm no orphan clears or `cleared_at` flags remain. Expected: end state matches the pre-recon state for that account — no `reconciliation_clears` rows from the deleted draft, no `cleared_at` non-nulls that shouldn't be there.
+- [ ] **VB-REC-30** — Mutating a cleared transaction (PATCH amount): server returns 200 with `reconciliation_warnings: [...]`; the recon row is marked stale (`stale=1`, `stale_reason` JSON, `stale_at` set); `accounts.last_reconciled_at` is unchanged. Expected: mutation succeeds; recon is marked stale; gate does NOT move.
+- [ ] **VB-REC-31** — Deleting a cleared transaction (`keep-this` / `keep-original` / direct delete): same as VB-REC-30 but `stale_reason.type = 'transaction_deleted'`. Expected: recon flips stale with the deleted-txn reason; gate unchanged.
+- [ ] **VB-REC-32** — Recategorizing a cleared transaction: same as VB-REC-30 (conservative: any category change is a mutation). Expected: recon stale with a category-mutation reason; gate unchanged.
+- [ ] **VB-REC-33** — Account list shows a red `⚠ stale` pill when any of the account's recons is stale. Expected: pill renders only for accounts with at least one stale recon; non-stale accounts show their normal pill.
+- [ ] **VB-REC-34** — Opening a stale account's reconcile page shows the red "Beginning balance is out of balance" banner. Expected: banner visible on the account's recon page; not on the global reconcile list.
+- [ ] **VB-REC-35** — The stale-account banner contains a "See what has changed" link; clicking it reveals a list of offending transactions with their original (reconciled-time) and current amounts shown side by side. Expected: each offending txn has both values visible side by side; the list is empty when there are no offenders (and the banner shows a different message).
+- [ ] **VB-REC-36** — Editing a transaction description does NOT trigger staleness (description is not a mutation). Expected: PATCH on description returns 200 with empty `reconciliation_warnings`; no recon marked stale.
+- [ ] **VB-REC-37** — Editing a transaction date DOES trigger staleness. Expected: PATCH on `txn_date` for a cleared txn returns 200 with non-empty `reconciliation_warnings`; the recon flips stale.
+- [ ] **VB-REC-38** — Pre-mutation snapshot in `stale_reason` JSON contains the full `before` state for the offending transaction, including amount, `category_account_id`, and `txn_date`. Expected: `stale_reason.offenders[*].before` includes all three fields so the UI can show side-by-side diffs.
+- [ ] **VB-REC-39** — Cascading FK delete (child txn deleted because parent txn deleted via `keep-this`): the staleness hook fires for each child, not just the parent. Expected: every cleared child txn produces its own stale-recon entry; the parent's stale entry covers the parent's row.
+- [ ] **VB-REC-40** — Walk-back rollback: after rolling back the latest recon, the prior recon becomes the new "latest." If the prior recon is stale, the account list shows `⚠ stale`; clicking rollback again walks the gate backward one more step. Expected: rollback is a per-recon action; one click unwinds one step; stale prior recons surface the stale pill until resolved.
+- [ ] **VB-REC-41** — Each rollback click is a single decision with a confirmation modal; there's no bulk / chained rollback endpoint. Expected: API exposes only single-recon rollback; the UI does not auto-apply successive rollbacks.
+
+## Transaction Editor
+
+These cover Phase E.2's general-purpose transaction editor (reachable from any transaction list) and the stale-banner entry point into it. The editor is amount-aware and re-runs journal lines + dedupe_hash on relevant edits; description edits are non-mutating per the §6.5 mutation table.
+
+- [ ] **VB-TXN-EDIT-01** — From any transaction list (Categorization, Reconcile working view, per-account transactions): click a transaction row → row expands inline with all editable fields populated. Expected: expanded editor shows `txn_date`, `amount`, `description`, `category_account_id`, `notes`; `cleared_at` is present but read-only.
+- [ ] **VB-TXN-EDIT-02** — Save commits the changes; PATCH returns the updated txn + `reconciliation_warnings` array (empty if no staleness triggered). Expected: 200 response body has `{ transaction, reconciliation_warnings: [...] }`; warnings array is non-empty exactly when at least one affected recon became stale.
+- [ ] **VB-TXN-EDIT-03** — Discard reverts the form to the last-saved state with no server call. Expected: clicking Discard restores the field values from the last successful Save (or the initial load); no network request is fired.
+- [ ] **VB-TXN-EDIT-04** — Edit `amount` → journal_lines are regenerated server-side (the categorization is amount-aware via the journal entry). Expected: post-Save, the txn's `journal_entry` has balanced debit/credit lines whose amounts match the new `amount`; old lines are gone.
+- [ ] **VB-TXN-EDIT-05** — Edit `account` (`category_account_id`) → journal_lines point at the new account; old journal_lines deleted or migrated per the existing `categorizeTransaction` helper. Expected: post-Save, the journal entry's lines reference the new `category_account_id`; no orphan lines on the old account.
+- [ ] **VB-TXN-EDIT-06** — Edit `txn_date` or `amount` → `dedupe_hash` is recomputed (existing logic). Expected: post-Save, `transactions.dedupe_hash` reflects the new `(account_id, txn_date, amount, vendor_normalized)` tuple; a re-import of the same data won't create a duplicate.
+- [ ] **VB-TXN-EDIT-07** — When Save returns non-empty `reconciliation_warnings`, the editor surfaces an inline alert naming the affected reconciliation by account + as_of_date, with a link to that account's reconcile page. Expected: alert appears below the form; each warning is a separate row; clicking the link navigates to the right account's recon page.
+- [ ] **VB-TXN-EDIT-08** — Stale-banner entry: clicking an offending transaction in the expanded "See what has changed" list opens the same editor pre-populated. No special "restore" affordance — user manually edits the field back to the original amount (visible in the list above the editor for reference) and Saves. Expected: editor opens with the offending field highlighted and the original value visible in the side-by-side list above; Save with the original value restores the reconciled state (no more stale warning on Save).
+- [ ] **VB-TXN-EDIT-09** — `cleared_at` is shown read-only in the editor as "Reconciled: yes/no, as of {date}" for context. The field itself is read-only and only mutable via the reconciliation system. Expected: PATCH cannot set `cleared_at` directly; the editor field is `disabled`; the label switches between yes/no based on the underlying value.
+- [ ] **VB-TXN-EDIT-10** — Editing the `description` (vendor/customer) does NOT trigger `reconciliation_warnings` (description is not a mutation per §6.5 table). Expected: PATCH on description returns 200 with empty `reconciliation_warnings`; the editor shows no warning banner.
 
 ## Status legend
 
@@ -164,3 +210,4 @@ These cover Phase E.1 (per-account monthly reconciliation). New tables: `reconci
 - 2026-07-01 — Phase D added: 15 new behaviors (VB-REP-01 through VB-REP-15) covering AR aging + Schedule C CSV export + Reports UI. All 15 verified live by Cinder + Rusty at the API + curl level; UI behaviors verified at the component-implementation level (no browser-driven QA pass yet — first Echo browser run is the D+F1+E.1 backfill, 2026-07-02).
 - 2026-07-01 — Phase F1 (orphan-safe delete): VB-DED-07 and VB-DED-08 already present from prior enumeration; updated notes to reflect F1 shipped. No new IDs needed.
 - 2026-07-02 — Phase E.1 (Reconciliation) folded in: 11 new behaviors VB-REC-01 through VB-REC-11. Active count: 73. Wren + Echo backfill review spawned for D + F1 + E.1.
+- 2026-07-04 — Phase E.2 (Reconciliation v2 + Transaction Editor) folded in: 30 new reconciliation behaviors VB-REC-12 through VB-REC-41 (gate advancement, rollback, staleness, walk-back) and a new "Transaction Editor" section with 10 behaviors VB-TXN-EDIT-01 through VB-TXN-EDIT-10 (inline edit, journal-line regen, dedupe_hash recompute, reconciliation_warnings surfacing, cleared_at read-only context, stale-banner entry). Active count: 113 (73 previously verified + 40 awaiting verification for E.2). No code or schema changes — pure doc fold-in by Cinder.

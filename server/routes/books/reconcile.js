@@ -1,154 +1,46 @@
-// Virta Books — Phase E.1: Account Reconciliation.
-//   GET    /api/v1/books/reconcile                    — list asset/liability accounts + last-recon status
-//   POST   /api/v1/books/reconcile                    — create-or-get-draft (idempotent on (account, period))
-//   GET    /api/v1/books/reconcile/:recon_id          — full detail: uncleared, cleared, running balance
-//   PATCH  /api/v1/books/reconcile/:recon_id          — update statement_balance, notes, status
-//   POST   /api/v1/books/reconcile/:recon_id/clear    — mark txn cleared (inserts clear row + sets cleared_at)
-//   DELETE /api/v1/books/reconcile/:recon_id/clear/:transaction_id — un-clear
+// Virta Books — Phase E.2: Account Reconciliation (route shell).
+// All business logic lives in `server/services/reconciliation.js`. This file
+// is just thin HTTP translation: parse input, call the service, format the
+// response.
 //
-// Source of truth: /Users/colonelhoracegentleman/clawd/projects/accounting-app/
-//   §13 (Account Reconciliation).
+// Endpoints:
+//   GET    /api/v1/books/reconcile                       — listAccountsWithReconStatus
+//   POST   /api/v1/books/reconcile                       — getOrCreateRecon
+//   GET    /api/v1/books/reconcile/:recon_id             — getReconDetail (?include_past=1)
+//   PATCH  /api/v1/books/reconcile/:recon_id             — inline (statement_balance, notes)
+//   POST   /api/v1/books/reconcile/:recon_id/close       — closeRecon
+//   POST   /api/v1/books/reconcile/:recon_id/rollback    — rollbackRecon
+//   DELETE /api/v1/books/reconcile/:recon_id             — cancelDraft
+//   POST   /api/v1/books/reconcile/:recon_id/clear       — inline (clears a txn)
+//   DELETE /api/v1/books/reconcile/:recon_id/clear/:txn_id — inline (un-clears a txn)
 //
-// Idempotency contract:
-//   - POST /reconcile returns the existing draft if (account_id, period_start, period_end)
-//     already has one in 'draft' or 'investigating' status. Only creates a new row if none exists.
-//   - INSERT OR IGNORE on reconciliation_clears so re-clearing a txn is a no-op.
-//   - DELETE on reconciliation_clears is a no-op if the row isn't there.
-//
-// Date handling: the existing `transactions.txn_date` column is mixed-format
-// (some MM/DD/YYYY from old imports, some YYYY-MM-DD from newer ones). We normalize
-// to YYYY-MM-DD in JS for the BETWEEN comparison rather than relying on SQLite
-// string comparison, which would miss the legacy MM/DD/YYYY rows.
+// Source of truth: ACCOUNTING-E2.md v4. The previous E.1 calendar-month
+// period model is fully replaced — write paths reject period_start /
+// period_end. Legacy read paths (the in-app E.1 client code) were already
+// updated in the D/F1/E.1 fix-pass to use the new endpoint shape; no
+// backwards-compat shim is needed in production code.
 
 import { Router } from 'express';
 import db from '../../db.js';
+import {
+  listAccountsWithReconStatus,
+  getOrCreateRecon,
+  getReconDetail,
+  closeRecon,
+  rollbackRecon,
+  cancelDraft,
+} from '../../services/reconciliation.js';
 
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function money(n) {
-  return Math.round(Number(n || 0) * 100) / 100;
-}
-
-// Convert any plausible date string (YYYY-MM-DD or MM/DD/YYYY) into YYYY-MM-DD.
-// Returns null if the input is unparseable.
-function normalizeDate(s) {
-  if (!s) return null;
-  const str = String(s).trim();
-  // YYYY-MM-DD (already canonical)
-  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  // MM/DD/YYYY
-  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) {
-    const mm = m[1].padStart(2, '0');
-    const dd = m[2].padStart(2, '0');
-    return `${m[3]}-${mm}-${dd}`;
-  }
-  return null;
-}
-
-// Sum credits minus debits for a given account across all journal_lines up to and
-// including the period_end. This is the canonical "books_balance" for the account.
-//
-// Sign convention: a positive books_balance matches what the user sees on a bank
-// statement for the account.
-//   - asset accounts are debit-normal: positive = more debits than credits
-//   - liability/equity accounts are credit-normal: positive = more credits than debits
-//
-// (Per Wren finding E1-S2: the previous implementation always returned
-// (credits - debits), which produced a negative books_balance for any asset
-// account with normal debit activity. The diff could never be zero against
-// a positive bank-statement balance, making reconciliation impossible.)
-function computeBooksBalance(accountId, periodEnd, accountType) {
-  // periodEnd is YYYY-MM-DD; include the entire day.
-  // journal_entries.txn_date is YYYY-MM-DD in practice (canonical form).
-  const row = db.prepare(`
-    SELECT
-      COALESCE(SUM(jl.credit), 0) AS credits,
-      COALESCE(SUM(jl.debit),  0) AS debits
-    FROM journal_lines jl
-    JOIN journal_entries je ON je.id = jl.entry_id
-    WHERE jl.account_id = ?
-      AND je.txn_date <= ?
-  `).get(accountId, periodEnd);
-  const credits = row.credits || 0;
-  const debits  = row.debits  || 0;
-  return money(accountType === 'asset' ? debits - credits : credits - debits);
-}
-
-// Pull all transactions for an account, then split into uncleared vs cleared
-// for the given period. Done in JS so we can normalize the mixed-date column.
-function splitTxnsForPeriod(accountId, periodStart, periodEnd) {
-  const all = db.prepare(`
-    SELECT id, txn_date, description, amount, vendor_normalized, cleared_at, status
-    FROM transactions
-    WHERE account_id = ?
-    ORDER BY txn_date, id
-  `).all(accountId);
-
-  const uncleared = [];
-  const cleared = [];
-  for (const t of all) {
-    const nd = normalizeDate(t.txn_date);
-    if (!nd) continue; // unparseable date — skip silently
-    if (nd < periodStart || nd > periodEnd) continue;
-    if (t.cleared_at) cleared.push(t); else uncleared.push(t);
-  }
-  return { uncleared, cleared };
-}
-
-// ---------------------------------------------------------------------------
 // GET /api/v1/books/reconcile
 //   List all asset/liability accounts with last-reconciliation status.
+//   Used by /books/reconcile (account-select screen).
 // ---------------------------------------------------------------------------
 router.get('/', (req, res) => {
   try {
-    const accounts = db.prepare(`
-      SELECT id, code, name, account_type
-      FROM accounts
-      WHERE account_type IN ('asset', 'liability') AND is_active = 1
-      ORDER BY account_type, code
-    `).all();
-
-    // For each account, find the most recent reconciliation (any status).
-    const lastReconStmt = db.prepare(`
-      SELECT reconciled_at, period_start, status, updated_at
-      FROM reconciliations
-      WHERE account_id = ?
-        AND status = 'reconciled'
-      ORDER BY reconciled_at DESC, updated_at DESC
-      LIMIT 1
-    `);
-    // Also pull the most recent draft/investigating (so the UI can show "in progress").
-    const lastOpenStmt = db.prepare(`
-      SELECT id, period_start, period_end, status, updated_at
-      FROM reconciliations
-      WHERE account_id = ?
-        AND status IN ('draft', 'investigating')
-      ORDER BY updated_at DESC
-      LIMIT 1
-    `);
-
-    const data = accounts.map(a => {
-      const last = lastReconStmt.get(a.id);
-      const open = lastOpenStmt.get(a.id);
-      const period = last ? String(last.period_start).slice(0, 7) : null;
-      return {
-        account_id: a.id,
-        account_code: a.code,
-        account_name: a.name,
-        account_type: a.account_type,
-        last_reconciled_at: last ? last.reconciled_at : null,
-        last_reconciled_period: period,
-        last_status: last ? last.status : null,
-        open_reconciliation: open || null,
-      };
-    });
-
+    const data = listAccountsWithReconStatus();
     res.json({ data });
   } catch (err) {
     console.error('[Books/Reconcile] list failed', err);
@@ -158,82 +50,30 @@ router.get('/', (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/v1/books/reconcile
-//   Create-or-get-draft. Idempotent on (account_id, period_start, period_end)
-//   when an existing row is in 'draft' or 'investigating' status. A 'reconciled'
-//   row always wins (we return it; creating a new draft for an already-reconciled
-//   period would create audit confusion).
-//   Body: { account_id, period_start, period_end }
+//   Body: { account_id, as_of_date }
+//   Idempotent on (account_id, status='draft'). 409 if as_of_date is not
+//   strictly greater than accounts.last_reconciled_at.
 // ---------------------------------------------------------------------------
 router.post('/', (req, res) => {
   try {
-    const { account_id, period_start, period_end } = req.body || {};
-    if (!account_id || !period_start || !period_end) {
+    const body = req.body || {};
+    // Reject E.1 calendar-month body shape — these fields are gone.
+    if (body.period_start !== undefined || body.period_end !== undefined) {
       return res.status(400).json({
-        error: 'account_id, period_start, period_end are required',
+        error: 'period_start / period_end are no longer accepted; use as_of_date',
         code: 'VALIDATION_ERROR',
       });
     }
-    // Validate the account exists and is asset/liability.
-    const account = db.prepare(`
-      SELECT id, code, name, account_type FROM accounts WHERE id = ?
-    `).get(account_id);
-    if (!account) {
-      return res.status(404).json({ error: 'Account not found', code: 'NOT_FOUND' });
-    }
-    if (!['asset', 'liability'].includes(account.account_type)) {
-      return res.status(400).json({
-        error: 'Only asset/liability accounts are reconcilable',
-        code: 'VALIDATION_ERROR',
-      });
-    }
-    // Defensive date validation: YYYY-MM-DD format only.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(period_start) || !/^\d{4}-\d{2}-\d{2}$/.test(period_end)) {
-      return res.status(400).json({
-        error: 'period_start and period_end must be YYYY-MM-DD',
-        code: 'VALIDATION_ERROR',
-      });
-    }
-    if (period_start > period_end) {
-      return res.status(400).json({
-        error: 'period_start must be <= period_end',
-        code: 'VALIDATION_ERROR',
-      });
-    }
-
-    // Look for an existing reconciliation for (account, period).
-    // If one exists in draft/investigating: return it (idempotent).
-    // If one exists as 'reconciled': return it too (don't create a new draft).
-    const existing = db.prepare(`
-      SELECT * FROM reconciliations
-      WHERE account_id = ? AND period_start = ? AND period_end = ?
-      ORDER BY created_at DESC
-      LIMIT 1
-    `).get(account_id, period_start, period_end);
-
-    if (existing) {
-      const detail = buildDetail(existing);
-      return res.json({ data: detail, created: false });
-    }
-
-    // Compute books_balance at creation time. The spec says: "across all time up
-    // to and including period_end" — so the books_balance for a January recon is
-    // the cumulative balance through Jan 31, not just January activity.
-    // Pass account_type so the sign convention matches the account's normal
-    // balance side (asset = debit-normal, others = credit-normal). See
-    // computeBooksBalance() docstring.
-    const booksBalance = computeBooksBalance(account_id, period_end, account.account_type);
-
-    const id = generateIdCompat();
-    db.prepare(`
-      INSERT INTO reconciliations
-        (id, account_id, period_start, period_end, books_balance, status)
-      VALUES (?, ?, ?, ?, ?, 'draft')
-    `).run(id, account_id, period_start, period_end, booksBalance);
-
-    const created = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(id);
-    const detail = buildDetail(created);
-    res.json({ data: detail, created: true });
+    const { detail, created } = getOrCreateRecon(body.account_id, body.as_of_date);
+    res.json({ data: detail, created });
   } catch (err) {
+    if (err.status && err.code) {
+      return res.status(err.status).json({
+        error: err.message, code: err.code,
+        ...(err.diff !== undefined ? { diff: err.diff } : {}),
+        ...(err.last_reconciled_at ? { last_reconciled_at: err.last_reconciled_at } : {}),
+      });
+    }
     console.error('[Books/Reconcile] create-draft failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }
@@ -241,18 +81,17 @@ router.post('/', (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/books/reconcile/:recon_id
-//   Full detail: reconciliation row + uncleared txns + cleared txns with
-//   running balance (cumulative sum across cleared, in date order).
+//   Optional ?include_past=1 to expand the uncleared set past as_of_date.
 // ---------------------------------------------------------------------------
 router.get('/:recon_id', (req, res) => {
   try {
-    const recon = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(req.params.recon_id);
-    if (!recon) {
-      return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
-    }
-    const detail = buildDetail(recon);
+    const includePast = req.query.include_past === '1' || req.query.include_past === 'true';
+    const detail = getReconDetail(req.params.recon_id, includePast);
     res.json({ data: detail });
   } catch (err) {
+    if (err.status && err.code) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
     console.error('[Books/Reconcile] get detail failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }
@@ -260,10 +99,9 @@ router.get('/:recon_id', (req, res) => {
 
 // ---------------------------------------------------------------------------
 // PATCH /api/v1/books/reconcile/:recon_id
-//   Body: { statement_balance?, notes?, status? }
-//   - statement_balance: recompute diff = books_balance - statement_balance
-//   - status='reconciled' allowed only when diff == 0 (else 400 with the actual diff)
-//   - updated_at is stamped automatically
+//   Body: { statement_balance?, notes? }
+//   Only drafts accept this — the new model has no 'investigating' status
+//   and reconciled recons are immutable (use rollback).
 // ---------------------------------------------------------------------------
 router.patch('/:recon_id', (req, res) => {
   try {
@@ -271,73 +109,41 @@ router.patch('/:recon_id', (req, res) => {
     if (!recon) {
       return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
     }
+    if (recon.status === 'reconciled') {
+      return res.status(409).json({
+        error: 'Reconciled reconciliations are immutable; use rollback to reopen',
+        code: 'RECON_LOCKED',
+      });
+    }
+    const { statement_balance, notes } = req.body || {};
+    if (statement_balance === undefined && notes === undefined) {
+      return res.status(400).json({ error: 'No updatable fields provided', code: 'VALIDATION_ERROR' });
+    }
 
-    const { statement_balance, notes, status } = req.body || {};
     const updates = [];
     const params = [];
-
     if (statement_balance !== undefined) {
       if (typeof statement_balance !== 'number' || !Number.isFinite(statement_balance)) {
         return res.status(400).json({ error: 'statement_balance must be a number', code: 'VALIDATION_ERROR' });
       }
       updates.push('statement_balance = ?');
-      params.push(money(statement_balance));
-      // diff = books_balance - statement_balance (per spec)
+      params.push(Math.round(statement_balance * 100) / 100);
+      const diff = Math.round((recon.books_balance - statement_balance) * 100) / 100;
       updates.push('diff = ?');
-      params.push(money(recon.books_balance - statement_balance));
+      params.push(diff);
     }
     if (notes !== undefined) {
       updates.push('notes = ?');
       params.push(notes === null ? null : String(notes));
     }
-
-    // Status transition logic.
-    let nextStatus = recon.status;
-    if (status !== undefined) {
-      if (!['draft', 'reconciled', 'investigating'].includes(status)) {
-        return res.status(400).json({
-          error: 'status must be one of draft|reconciled|investigating',
-          code: 'VALIDATION_ERROR',
-        });
-      }
-      if (status === 'reconciled') {
-        // Require diff == 0. We look at the recomputed diff (after any just-applied
-        // statement_balance). If statement_balance wasn't provided, fall back to
-        // the existing diff.
-        const stmtBal = statement_balance !== undefined ? money(statement_balance) : recon.statement_balance;
-        const diff = recon.books_balance - (stmtBal ?? 0);
-        if (Math.abs(diff) >= 0.005) {
-          return res.status(400).json({
-            error: `Cannot mark reconciled: diff is ${money(diff).toFixed(2)}, must be 0`,
-            code: 'DIFF_NOT_ZERO',
-            diff: money(diff),
-          });
-        }
-        updates.push('reconciled_at = ?');
-        params.push(new Date().toISOString());
-      }
-      nextStatus = status;
-      updates.push('status = ?');
-      params.push(status);
-    }
-
-    if (updates.length === 0) {
-      return res.status(400).json({ error: 'No updatable fields provided', code: 'VALIDATION_ERROR' });
-    }
-
-    // Refresh cleared_count to current row count in reconciliation_clears.
-    updates.push('cleared_count = ?');
-    params.push(db.prepare('SELECT COUNT(*) as c FROM reconciliation_clears WHERE reconciliation_id = ?').get(recon.id).c);
-
     updates.push('updated_at = ?');
     params.push(new Date().toISOString());
-
     params.push(recon.id);
+
     db.prepare(`UPDATE reconciliations SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
     const updated = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(recon.id);
-    const detail = buildDetail(updated);
-    res.json({ data: detail });
+    res.json({ data: { ...buildDetailLite(updated), notes: updated.notes } });
   } catch (err) {
     console.error('[Books/Reconcile] patch failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
@@ -345,12 +151,66 @@ router.patch('/:recon_id', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/v1/books/reconcile/:recon_id/close
+//   Body: { statement_balance }
+//   Atomic commit on diff==0. Sets accounts.last_reconciled_*.
+// ---------------------------------------------------------------------------
+router.post('/:recon_id/close', (req, res) => {
+  try {
+    const { statement_balance } = req.body || {};
+    const result = closeRecon(req.params.recon_id, Number(statement_balance));
+    res.json({ data: result.detail, account: result.account });
+  } catch (err) {
+    if (err.status && err.code) {
+      return res.status(err.status).json({
+        error: err.message, code: err.code,
+        ...(err.diff !== undefined ? { diff: err.diff } : {}),
+      });
+    }
+    console.error('[Books/Reconcile] close failed', err);
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/v1/books/reconcile/:recon_id/rollback
+//   Latest-only rollback. See service for the atomicity contract.
+// ---------------------------------------------------------------------------
+router.post('/:recon_id/rollback', (req, res) => {
+  try {
+    const result = rollbackRecon(req.params.recon_id);
+    res.json({ data: result });
+  } catch (err) {
+    if (err.status && err.code) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    console.error('[Books/Reconcile] rollback failed', err);
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/v1/books/reconcile/:recon_id
+//   Cancel a draft (or legacy 'investigating') recon. 404 for reconciled —
+//   the caller must use rollback.
+// ---------------------------------------------------------------------------
+router.delete('/:recon_id', (req, res) => {
+  try {
+    const result = cancelDraft(req.params.recon_id);
+    res.json({ data: result });
+  } catch (err) {
+    if (err.status && err.code) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    console.error('[Books/Reconcile] cancel-draft failed', err);
+    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/v1/books/reconcile/:recon_id/clear
 //   Body: { transaction_id }
-//   - INSERT OR IGNORE into reconciliation_clears (idempotent)
-//   - UPDATE transactions SET cleared_at = datetime('now') WHERE id = ? AND cleared_at IS NULL
-//   - Recompute cleared_count on the reconciliation
-//   Returns updated detail.
+//   Locks if status='reconciled' (E1-S1 contract preserved).
 // ---------------------------------------------------------------------------
 router.post('/:recon_id/clear', (req, res) => {
   try {
@@ -358,12 +218,9 @@ router.post('/:recon_id/clear', (req, res) => {
     if (!recon) {
       return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
     }
-    // Per E1-S1: a reconciled period is closed. Lock out clear/unclear mutations
-    // so the audit record at the moment of sign-off stays consistent. Caller can
-    // reopen by PATCHing status back to 'investigating'.
     if (recon.status === 'reconciled') {
       return res.status(409).json({
-        error: 'Cannot modify clears on a reconciled period. Set status to investigating first.',
+        error: 'Cannot modify clears on a reconciled period.',
         code: 'RECON_LOCKED',
       });
     }
@@ -381,17 +238,11 @@ router.post('/:recon_id/clear', (req, res) => {
         code: 'ACCOUNT_MISMATCH',
       });
     }
-
-    // INSERT OR IGNORE — re-clearing is a no-op.
     db.prepare(`
       INSERT OR IGNORE INTO reconciliation_clears (reconciliation_id, transaction_id)
       VALUES (?, ?)
     `).run(recon.id, transaction_id);
-
-    // Set transactions.cleared_at if not already set.
     db.prepare(`UPDATE transactions SET cleared_at = datetime('now') WHERE id = ? AND cleared_at IS NULL`).run(transaction_id);
-
-    // Refresh cleared_count + updated_at.
     db.prepare(`
       UPDATE reconciliations
       SET cleared_count = (SELECT COUNT(*) FROM reconciliation_clears WHERE reconciliation_id = ?),
@@ -400,7 +251,7 @@ router.post('/:recon_id/clear', (req, res) => {
     `).run(recon.id, new Date().toISOString(), recon.id);
 
     const updated = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(recon.id);
-    res.json({ data: buildDetail(updated) });
+    res.json({ data: getReconDetail(updated.id) });
   } catch (err) {
     console.error('[Books/Reconcile] clear failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
@@ -409,9 +260,6 @@ router.post('/:recon_id/clear', (req, res) => {
 
 // ---------------------------------------------------------------------------
 // DELETE /api/v1/books/reconcile/:recon_id/clear/:transaction_id
-//   - DELETE from reconciliation_clears (no-op if not present)
-//   - UPDATE transactions SET cleared_at = NULL WHERE id = ?
-//   - Recompute cleared_count
 // ---------------------------------------------------------------------------
 router.delete('/:recon_id/clear/:transaction_id', (req, res) => {
   try {
@@ -419,26 +267,20 @@ router.delete('/:recon_id/clear/:transaction_id', (req, res) => {
     if (!recon) {
       return res.status(404).json({ error: 'Reconciliation not found', code: 'NOT_FOUND' });
     }
-    // Per E1-S1: a reconciled period is closed. Lock out clear/unclear mutations
-    // so the audit record at the moment of sign-off stays consistent. Caller can
-    // reopen by PATCHing status back to 'investigating'.
     if (recon.status === 'reconciled') {
       return res.status(409).json({
-        error: 'Cannot modify clears on a reconciled period. Set status to investigating first.',
+        error: 'Cannot modify clears on a reconciled period.',
         code: 'RECON_LOCKED',
       });
     }
     const { transaction_id } = req.params;
-    // Defensive: confirm the transaction exists (avoid silently doing nothing).
     const txn = db.prepare('SELECT id FROM transactions WHERE id = ?').get(transaction_id);
     if (!txn) {
       return res.status(404).json({ error: 'Transaction not found', code: 'NOT_FOUND' });
     }
-
     db.prepare('DELETE FROM reconciliation_clears WHERE reconciliation_id = ? AND transaction_id = ?')
       .run(recon.id, transaction_id);
     db.prepare('UPDATE transactions SET cleared_at = NULL WHERE id = ?').run(transaction_id);
-
     db.prepare(`
       UPDATE reconciliations
       SET cleared_count = (SELECT COUNT(*) FROM reconciliation_clears WHERE reconciliation_id = ?),
@@ -447,7 +289,7 @@ router.delete('/:recon_id/clear/:transaction_id', (req, res) => {
     `).run(recon.id, new Date().toISOString(), recon.id);
 
     const updated = db.prepare('SELECT * FROM reconciliations WHERE id = ?').get(recon.id);
-    res.json({ data: buildDetail(updated) });
+    res.json({ data: getReconDetail(updated.id) });
   } catch (err) {
     console.error('[Books/Reconcile] un-clear failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
@@ -455,30 +297,13 @@ router.delete('/:recon_id/clear/:transaction_id', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Internal: build the full detail payload for a reconciliation row.
+// Lightweight shape for PATCH (re-uses the service for the full shape).
 // ---------------------------------------------------------------------------
-function buildDetail(recon) {
-  const { uncleared, cleared } = splitTxnsForPeriod(recon.account_id, recon.period_start, recon.period_end);
-  // Running balance across cleared txns (cumulative sum of amount, in date order).
-  let running = 0;
-  const clearedWithBalance = cleared.map(t => {
-    running = money(running + Number(t.amount));
-    return { ...t, running_balance: running };
-  });
-  const account = db.prepare('SELECT id, code, name, account_type FROM accounts WHERE id = ?').get(recon.account_id);
+function buildDetailLite(recon) {
   return {
     reconciliation: recon,
-    account,
-    uncleared,
-    cleared: clearedWithBalance,
+    account: db.prepare('SELECT id, code, name, account_type FROM accounts WHERE id = ?').get(recon.account_id),
   };
-}
-
-// Generate a hex ID (matches SQLite's lower(hex(randomblob(16))) default).
-// We use crypto.randomUUID-style bytes from Node's crypto.
-import { randomBytes } from 'crypto';
-function generateIdCompat() {
-  return randomBytes(16).toString('hex');
 }
 
 export default router;

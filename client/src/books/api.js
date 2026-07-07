@@ -23,6 +23,8 @@ async function request(method, path, body) {
     err.invoice_count = json.invoice_count;
     err.payments_count = json.payments_count;
     err.response_data = json.data; // some endpoints (e.g. /test-smtp) put their structured info in `data`
+    err.last_reconciled_at = json.last_reconciled_at; // E.2: RECON_DATE_NOT_FORWARD detail
+    err.diff = json.diff; // E.2: DIFF_NOT_ZERO detail
     throw err;
   }
   return json && Object.prototype.hasOwnProperty.call(json, 'data') ? json.data : json;
@@ -158,8 +160,15 @@ export const booksApi = {
   // Phase E.1: Reconciliation
   listReconciliations: () => request('GET', '/reconcile'),
   createReconciliation: (data) => request('POST', '/reconcile', data),
-  getReconciliation: (id) => request('GET', `/reconcile/${id}`),
+  getReconciliation: (id, opts = {}) => {
+    const q = opts.includePast ? '?include_past=1' : '';
+    return request('GET', `/reconcile/${id}${q}`);
+  },
   updateReconciliation: (id, data) => request('PATCH', `/reconcile/${id}`, data),
+  closeReconciliation: (id, statementBalance) =>
+    request('POST', `/reconcile/${id}/close`, { statement_balance: statementBalance }),
+  rollbackReconciliation: (id) => request('POST', `/reconcile/${id}/rollback`),
+  cancelReconciliation: (id) => request('DELETE', `/reconcile/${id}`),
   clearTransaction: (reconId, transactionId) =>
     request('POST', `/reconcile/${reconId}/clear`, { transaction_id: transactionId }),
   unClearTransaction: (reconId, transactionId) =>

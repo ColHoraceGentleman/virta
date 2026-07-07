@@ -176,15 +176,10 @@ export default function BooksShell() {
   } else if (path === '/books/reconcile' || path === '/books/reconcile/') {
     page = <Reconcile navigate={navigate} />;
   } else if (path.startsWith('/books/reconcile/')) {
+    // E.2: reconciliation is anchored to as_of_date, not a calendar-month
+    // period, so the ?period= query param is no longer parsed/consumed.
     const accountId = path.split('/')[3];
-    // Parse ?period=YYYY-MM from the query string
-    let initialPeriod = '';
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const p = params.get('period');
-      if (p && /^\d{4}-\d{2}$/.test(p)) initialPeriod = p;
-    } catch { /* SSR/no window */ }
-    page = <Reconcile navigate={navigate} accountId={accountId} initialPeriod={initialPeriod} />;
+    page = <Reconcile navigate={navigate} accountId={accountId} />;
   } else {
     page = (
       <div className="p-8 text-slate-300">

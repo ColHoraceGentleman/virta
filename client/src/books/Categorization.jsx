@@ -51,12 +51,18 @@ export default function Categorization({ navigate }) {
   }, []);
 
   // Fetch transactions for the current tab.
+  // XC-1 fix: booksApi.listTransactions() returns the unwrapped array (the api
+  // helper auto-unwraps { data, total, limit, offset } → just the array). The
+  // pre-fix code accessed data.data which was undefined.data → undefined[0]
+  // crash. Use the unwrapped shape directly. (Endpoint also returns total/limit/
+  // offset but we don't need them on this surface; if we ever do, swap to raw
+  // fetch like arAging in api.js.)
   const reload = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await booksApi.listTransactions({ status: tab, limit: 500 });
-      setRows(data.data);
+      const rows = await booksApi.listTransactions({ status: tab, limit: 500 });
+      setRows(rows);
       setSelectedIdx(0);
     } catch (e) {
       setError(e.message);
@@ -106,10 +112,14 @@ export default function Categorization({ navigate }) {
       }
       // Vendor rule prompt: if this is a manual categorization and vendor has 3+ manual
       // categorizations to this account, prompt to create a rule.
+      // XC-1 fix: booksApi.vendorManualCounts() returns the unwrapped array (api helper
+      // auto-unwraps { data: [...] } → just the array). The pre-fix code accessed
+      // counts.data which crashed the inner try/catch (counts was an array, .data
+      // undefined). Use the unwrapped array directly.
       if (selected.vendor_normalized) {
         try {
           const counts = await booksApi.vendorManualCounts(selected.vendor_normalized);
-          const top = counts.data?.[0];
+          const top = counts[0];
           if (top && Number(top.count) >= 3 && top.category_account_id === categoryAccountId
               && !vendorRulePromptShown.has(selected.vendor_normalized)) {
             const account = accounts.find(a => a.id === categoryAccountId);

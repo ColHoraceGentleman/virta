@@ -82,7 +82,7 @@ app.get('/api/v1/books/health', (req, res) => {
   const reconciliationCount = db.prepare('SELECT COUNT(*) as c FROM reconciliations').get().c;
   res.json({
     status: 'ok',
-    phase: 'E.1',
+    phase: 'E.2',
     accounts: accountCount,
     customers: customerCount,
     invoices: invoiceCount,

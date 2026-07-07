@@ -10,11 +10,14 @@ import { Router } from 'express';
 import db from '../../db.js';
 import { categorizeTransaction } from './imports.js';
 import { deleteTransaction } from '../../services/journalHelpers.js';
+import { invalidateReconciliationOnMutation } from '../../services/reconciliation.js';
 
 const router = Router();
 
 // ALLOWED_PATCH_FIELDS — fields the UI can update on a transaction row.
-const ALLOWED_PATCH_FIELDS = ['category_account_id', 'status', 'notes', 'vendor_normalized'];
+// E.2 EXPANDS this to include 'amount' and 'txn_date' so the new in-line
+// transaction editor can mutate those (which triggers the mutation hook).
+const ALLOWED_PATCH_FIELDS = ['category_account_id', 'status', 'notes', 'vendor_normalized', 'amount', 'txn_date', 'description'];
 
 // GET /api/v1/books/transactions/stats/vendor-manual-counts?vendor=...
 // (Declared BEFORE /:id routes so it doesn't get matched as id='stats'.)
@@ -228,6 +231,8 @@ router.get('/:id/near-duplicate', (req, res) => {
 //   keep_this     — delete the ORIGINAL transaction (and its journal entries). This one stays.
 //   keep_original — delete THIS transaction (and its journal entries). Original stays.
 // All paths wrapped in db.transaction() for atomicity.
+// E.2: any deleted transaction that was cleared by a `reconciled` recon fires
+// the mutation hook so the affected recons become stale.
 router.post('/:id/resolve-duplicate', (req, res) => {
   try {
     const action = (req.body && req.body.action) || '';
@@ -249,6 +254,9 @@ router.post('/:id/resolve-duplicate', (req, res) => {
 
     let deleted = null;
     let cleared = false;
+    // E.2: capture full snapshots of any deleted transactions BEFORE delete,
+    // so the mutation hook has the pre-mutation state to store.
+    let deletedSnapshots = []; // [{id, account_id, amount, category_account_id, txn_date, cleared_at}, ...]
 
     const tx = db.transaction(() => {
       if (action === 'keep_both') {
@@ -260,6 +268,17 @@ router.post('/:id/resolve-duplicate', (req, res) => {
         // journal_lines cascade via journal_lines.entry_id FK. The helper does it all.
         // First, clear any other transactions that reference this original as their near_duplicate_of,
         // since deleting the original would break those FK references.
+        const origTxn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(originalId);
+        if (origTxn) {
+          deletedSnapshots.push({
+            id: origTxn.id,
+            account_id: origTxn.account_id,
+            amount: origTxn.amount,
+            category_account_id: origTxn.category_account_id,
+            txn_date: origTxn.txn_date,
+            cleared_at: origTxn.cleared_at,
+          });
+        }
         db.prepare(`UPDATE transactions SET near_duplicate_of = NULL WHERE near_duplicate_of = ?`).run(originalId);
         deleteTransaction(originalId);
         db.prepare(`UPDATE transactions SET near_duplicate_of = NULL, updated_at = datetime('now') WHERE id = ?`)
@@ -267,13 +286,38 @@ router.post('/:id/resolve-duplicate', (req, res) => {
         deleted = originalId;
       } else if (action === 'keep_original') {
         // Delete this transaction. F1: cascade via FK — no manual journal_entries cleanup needed.
+        const myTxn = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(req.params.id);
+        if (myTxn) {
+          deletedSnapshots.push({
+            id: myTxn.id,
+            account_id: myTxn.account_id,
+            amount: myTxn.amount,
+            category_account_id: myTxn.category_account_id,
+            txn_date: myTxn.txn_date,
+            cleared_at: myTxn.cleared_at,
+          });
+        }
         deleteTransaction(req.params.id);
         deleted = req.params.id;
       }
     });
     tx();
 
-    res.json({ data: { action, deleted, cleared } });
+    // E.2: fire the mutation hook for each deleted transaction that was cleared.
+    const reconciliation_warnings = [];
+    const seen = new Set();
+    for (const snap of deletedSnapshots) {
+      if (!snap.cleared_at) continue;
+      const ws = invalidateReconciliationOnMutation(snap.id, 'transaction_deleted', snap, null);
+      for (const w of ws) {
+        if (!seen.has(w.recon_id)) {
+          seen.add(w.recon_id);
+          reconciliation_warnings.push(w);
+        }
+      }
+    }
+
+    res.json({ data: { action, deleted, cleared, reconciliation_warnings } });
   } catch (err) {
     console.error('[Books/Transactions] resolve-duplicate failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
@@ -281,9 +325,12 @@ router.post('/:id/resolve-duplicate', (req, res) => {
 });
 
 // PATCH /api/v1/books/transactions/:id
-// Body: { category_account_id?, status?, notes?, vendor_normalized? }
+// Body: { category_account_id?, status?, notes?, vendor_normalized?, amount?, txn_date?, description? }
 // Side effect: setting category_account_id creates a journal entry (debit/credit pair).
 // Status auto-updates to 'categorized' when category is set (unless caller specifies otherwise).
+// E.2 mutation hook: any change to a *cleared* transaction's amount, category, or txn_date
+// invalidates the cleared reconciliation. The hook fires AFTER all the write-path mutations
+// (including categorizeTransaction, which can re-write journal entries).
 router.patch('/:id', (req, res) => {
   try {
     const existing = db.prepare(`SELECT * FROM transactions WHERE id = ?`).get(req.params.id);
@@ -305,7 +352,7 @@ router.patch('/:id', (req, res) => {
     }
 
     if (updates.length === 0) {
-      return res.json({ data: existing });
+      return res.json({ data: existing, reconciliation_warnings: [] });
     }
 
     // If category changed AND the new category is non-null, we must create the journal
@@ -341,12 +388,57 @@ router.patch('/:id', (req, res) => {
       WHERE t.id = ?
     `).get(req.params.id);
 
-    res.json({ data: updated, journal_created: mustCreateJournal });
+    // E.2 mutation hook. Compute what mutated (vs the existing snapshot) and
+    // dispatch a single invalidate call per mutation type. The hook itself
+    // is responsible for collecting stale recons across the four affected
+    // mutation types.
+    const reconciliation_warnings = runMutationHookIfCleared(req.params.id, existing, updated);
+
+    res.json({ data: updated, journal_created: mustCreateJournal, reconciliation_warnings });
   } catch (err) {
     console.error('[Books/Transactions] patch failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }
 });
+
+// Helper: run the mutation hook for any PATCH-driven mutation. Detects:
+//   - amount_changed
+//   - category_changed
+//   - transaction_date_changed
+// Per the spec, description and status changes are NOT mutations. Returns
+// the union of all stale-recon warnings triggered by this PATCH.
+function runMutationHookIfCleared(txnId, before, after) {
+  if (!after || !after.cleared_at) return [];
+  const allWarnings = [];
+  const seen = new Set(); // dedupe across the three mutation types
+
+  const amountChanged = Number(before.amount) !== Number(after.amount);
+  const categoryChanged = (before.category_account_id || null) !== (after.category_account_id || null);
+  const dateChanged = String(before.txn_date).slice(0, 10) !== String(after.txn_date).slice(0, 10);
+
+  if (amountChanged) {
+    const w = invalidateReconciliationOnMutation(txnId, 'amount_changed',
+      { amount: Number(before.amount), category_account_id: before.category_account_id, txn_date: before.txn_date },
+      { amount: Number(after.amount),  category_account_id: after.category_account_id,  txn_date: after.txn_date }
+    );
+    for (const x of w) { if (!seen.has(x.recon_id)) { seen.add(x.recon_id); allWarnings.push(x); } }
+  }
+  if (categoryChanged) {
+    const w = invalidateReconciliationOnMutation(txnId, 'category_changed',
+      { amount: Number(before.amount), category_account_id: before.category_account_id, txn_date: before.txn_date },
+      { amount: Number(after.amount),  category_account_id: after.category_account_id,  txn_date: after.txn_date }
+    );
+    for (const x of w) { if (!seen.has(x.recon_id)) { seen.add(x.recon_id); allWarnings.push(x); } }
+  }
+  if (dateChanged) {
+    const w = invalidateReconciliationOnMutation(txnId, 'transaction_date_changed',
+      { amount: Number(before.amount), category_account_id: before.category_account_id, txn_date: before.txn_date },
+      { amount: Number(after.amount),  category_account_id: after.category_account_id,  txn_date: after.txn_date }
+    );
+    for (const x of w) { if (!seen.has(x.recon_id)) { seen.add(x.recon_id); allWarnings.push(x); } }
+  }
+  return allWarnings;
+}
 
 // POST /api/v1/books/transactions/:id/exclude
 // Status='excluded', no journal entry.
