@@ -254,7 +254,7 @@ const state = {
   catFilter:'all',       /* Categories Management single-page filter chip */
   catSearch:'',
   catShowHidden:false,
-  catDefaultSort:'name', /* sourced from settings (D27) */
+  catDefaultSort:'code', /* sourced from settings (D27; default flipped to "Numerical by code" in round 8) */
   settingsTab:'general',  /* D49: settings page section tab (general|categories|other) */
   sortMgmt:null,         /* active sort on the management table; null = follow catDefaultSort */
   reviewLaterTxnCount:3,
@@ -770,9 +770,8 @@ function renderCats(){
       <table class="cat-table">
         <tbody><tr class="review-later">
           ${state.showNumbers ? '<td><code>9999</code></td>' : ''}
-          <td><strong>Review Later</strong> <span class="pill system">system</span></td>
-          <td class="desc">No Schedule C mapping by design. Badge count in sidebar shows outstanding items.</td>
-          <td class="row-actions muted small">system</td>
+          <td><strong>Review Later</strong></td>
+          <td class="desc">No Tax Mapping</td>
         </tr></tbody>
       </table>
     </div>
@@ -914,19 +913,19 @@ function renderMgmt(){
 
   const html = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-      <input type="text" placeholder="🔍 Search categories by name, code, or line..." value="${esc(state.catSearch||'')}" oninput="state.catSearch=this.value;render()" style="flex:1;min-width:240px;max-width:520px">
+      <input type="text" id="mgmt-search" placeholder="🔍 Search categories by name, code, or line..." value="${esc(state.catSearch||'')}" oninput="state.catSearch=this.value;window.__renderMgmtTable()" style="flex:1;min-width:240px;max-width:520px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">${chipRow}</div>
       <label style="margin:0;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft)">
-        <input type="checkbox" ${showHidden?'checked':''} onchange="state.catShowHidden=this.checked;render()"> Show hidden <span class="muted small">(${hiddenCount})</span>
+        <input type="checkbox" ${showHidden?'checked':''} onchange="state.catShowHidden=this.checked;window.__renderMgmtTable()"> Show hidden <span class="muted small">(${hiddenCount})</span>
       </label>
       <div style="flex:1"></div>
       <button class="add-btn" onclick="window.__openAdd('${filter==='revenue'?'income':filter==='ale'?'other':'expense'}')">+ Add category</button>
     </div>
-    <p class="help muted" style="margin:0 0 10px 0">${filtered.length} of ${all.length} categories${search?` matching "<strong>${esc(state.catSearch)}</strong>"`:''}. Default sort: ${state.catDefaultSort==='code'?'alphabetical by code':'alphabetical by name'} (change in <a href="#" onclick="state.screen='settings';render()">Settings → Categories</a>).</p>
-    <div style="max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+    <p class="help muted" id="mgmt-helper" style="margin:0 0 10px 0">${filtered.length} of ${all.length} categories${search?` matching "<strong>${esc(state.catSearch)}</strong>"`:''}. Default sort: ${state.catDefaultSort==='code'?'numerical by code':'alphabetical by name'} (change in <a href="#" onclick="state.settingsTab='categories';state.screen='settings';render()">Settings → Categories</a>).</p>
+    <div id="mgmt-table-wrap" style="max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px">
       <table class="cat-table">
         <thead><tr>${headers}</tr></thead>
-        <tbody>${tableRows || `<tr><td colspan="${state.showNumbers?6:5}" class="empty-state">No categories match the current filters.</td></tr>`}</tbody>
+        <tbody id="mgmt-tbody">${tableRows || `<tr><td colspan="${state.showNumbers?6:5}" class="empty-state">No categories match the current filters.</td></tr>`}</tbody>
       </table>
     </div>`;
 
@@ -934,6 +933,59 @@ function renderMgmt(){
   $('#root').innerHTML = topbar(title,['Books','Categories']) + `<div class="box" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:var(--shadow)">${html}</div>`;
   refreshBadge();
 }
+/* D? round 8: only re-render the table portion on search input so the input keeps focus */
+window.__renderMgmtTable = ()=>{
+  const tableArea = window.document.querySelector('#mgmt-table-wrap');
+  const helper = window.document.querySelector('#mgmt-helper');
+  if(!tableArea) return render();
+  const filter = state.catFilter || 'all';
+  const search = (state.catSearch || '').toLowerCase().trim();
+  const showHidden = !!state.catShowHidden;
+  const all = [
+    ...state.expenses.map((e,i)=>({...e, prefix:'expenses', i, typeName:'Expense'})),
+    ...state.income.map((e,i)=>({...e, prefix:'income', i, typeName:'Income'})),
+    ...state.other.map((e,i)=>({...e, prefix:'other', i, typeName:e.type}))
+  ];
+  let filtered = all;
+  if(filter==='expenses') filtered = filtered.filter(r => r.typeName === 'Expense');
+  else if(filter==='revenue') filtered = filtered.filter(r => r.typeName === 'Income');
+  else if(filter==='ale') filtered = filtered.filter(r => ['Asset','Liability','Equity'].includes(r.typeName));
+  if(!showHidden) filtered = filtered.filter(r => !r.is_hidden);
+  if(search){
+    filtered = filtered.filter(r => {
+      const lineDesc = r.line ? (lineLabel(r.line).toLowerCase()) : '';
+      return (r.name||'').toLowerCase().includes(search) || (r.code||'').toLowerCase().includes(search) || lineDesc.includes(search);
+    });
+  }
+  const sk = state.sortMgmt || { key: state.catDefaultSort || 'name', dir: 'asc' };
+  const sysPinnedFirst = (a,b)=> (b.system?1:0) - (a.system?1:0);
+  const by = (a,b)=>{
+    const va = (a[sk.key] ?? '').toString().toLowerCase();
+    const vb = (b[sk.key] ?? '').toString().toLowerCase();
+    if(va < vb) return sk.dir==='asc' ? -1 : 1;
+    if(va > vb) return sk.dir==='asc' ?  1 : -1;
+    return 0;
+  };
+  filtered = [...filtered].sort((a,b)=> sysPinnedFirst(a,b) || by(a,b));
+  const tableRows = filtered.map(r => mgmtUnifiedRow(r.prefix, r, r.i)).join('');
+  const headers = `
+    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
+    ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
+    <th>Type</th>
+    <th>Tax Line Item</th>
+    <th class="right">Transactions</th>
+    <th></th>`;
+  const thead = tableArea.querySelector('thead tr');
+  if(thead) thead.innerHTML = headers;
+  const tbody = window.document.querySelector('#mgmt-tbody');
+  if(tbody) tbody.innerHTML = tableRows || `<tr><td colspan="${state.showNumbers?6:5}" class="empty-state">No categories match the current filters.</td></tr>`;
+  if(helper){
+    const hiddenCount = all.filter(r => r.is_hidden).length;
+    helper.innerHTML = `${filtered.length} of ${all.length} categories${search?` matching "<strong>${window.document.querySelector('#mgmt-search')?.value || search}</strong>"`:''}. Default sort: ${state.catDefaultSort==='code'?'numerical by code':'alphabetical by name'} (change in <a href="#" onclick="state.settingsTab='categories';state.screen='settings';render()">Settings → Categories</a>).`;
+  }
+  /* refresh the hidden-count in the show-hidden label */
+  const showHiddenLabel = window.document.querySelector('label[for="mgmt-search"]') || null; /* placeholder */
+};
 window.__sortMgmtBy = (key)=>{
   const sk = state.sortMgmt || (state.sortMgmt = { key: state.catDefaultSort || 'name', dir: 'asc' });
   if(sk.key === key) sk.dir = sk.dir==='asc' ? 'desc' : 'asc';
@@ -949,15 +1001,18 @@ window.__openModal = (title, body, buttons) => {
 };
 window.closeModal = ()=>$('#modalBack').classList.remove('open');
 window.__openAdd = (kind)=>{
-  /* D47: Type is FREE in the Add modal (not wizard-locked). The `kind` arg just sets a sensible default. */
+  /* Round 8: Type is LOCKED in the wizard context (other options greyed out). Only the Categories section
+     (outside the wizard) lets the user pick freely. `kind` is the calling wizard step ('expense'|'income'|'other'). */
+  const inWizard = state.screen === 'cats';
   const typeDefault = kind==='income' ? 'Income' : (kind==='other' ? 'Asset' : 'Expense');
   const lineOptionsFor = (type) => {
     if(type==='Income') return IRS_INCOME_LINES;
     if(type==='Expense') return IRS_EXPENSE_LINES;
     return [];
   };
-  const typeOpts = ['Expense','Income','Asset','Liability','Equity']
-    .map(t=>`<option value="${t}" ${t===typeDefault?'selected':''}>${t}</option>`).join('');
+  const allTypes = ['Expense','Income','Asset','Liability','Equity'];
+  const typeOpts = allTypes
+    .map(t=>`<option value="${t}" ${t===typeDefault?'selected':''} ${inWizard?'disabled':''}>${t}</option>`).join('');
   const buildLineOpts = (type) => lineOptionsFor(type)
     .map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
   /* D46: code field only when account numbers are on */
@@ -968,8 +1023,8 @@ window.__openAdd = (kind)=>{
   /* D48-related: line-wrap always shown for Expense/Income; lines hidden otherwise. Type picker rebuilds lines on change. */
   const showLineWrap = typeDefault==='Expense' || typeDefault==='Income';
   window.__openModal('Add account', `
-    <label>Type <span class="req">*</span></label>
-    <select id="m-type" onchange="document.getElementById('m-line-wrap').style.display=this.value==='Expense'||this.value==='Income'?'':'none';document.getElementById('m-line').innerHTML=window.__buildLineOpts(this.value);">
+    <label>Type ${inWizard?'<span class="help" style="margin:0"> (locked — wizard context)</span>':''}</label>
+    <select id="m-type" ${inWizard?'disabled':''} onchange="document.getElementById('m-line-wrap').style.display=this.value==='Expense'||this.value==='Income'?'':'none';document.getElementById('m-line').innerHTML=window.__buildLineOpts(this.value);">
       ${typeOpts}
     </select>
     <label>Name <span class="req">*</span></label>
@@ -1154,30 +1209,74 @@ function renderSettings(){
   `;
   const general = () => `
     <div class="row" style="display:block">
-      <label style="margin-top:0">Business name</label>
+      <label style="margin-top:0">Your name</label>
+      <input type="text" value="${esc(state.setup.proprietor||'')}" placeholder="Your legal name" oninput="state.setup.proprietor=this.value" style="max-width:420px">
+    </div>
+    <div class="row" style="display:block">
+      <label>Business name</label>
       <input type="text" value="${esc(state.setup.business_name||'')}" placeholder="Your business name" oninput="state.setup.business_name=this.value" style="max-width:420px">
     </div>
     <div class="row" style="display:block">
+      <label>Trade name <span class="muted small">(optional)</span></label>
+      <input type="text" value="${esc(state.setup.trade_name||'')}" placeholder="Distinct from business name" oninput="state.setup.trade_name=this.value" style="max-width:420px">
+    </div>
+    <div class="row" style="display:block">
+      <label>What does your business do?</label>
+      <textarea rows="2" maxlength="280" placeholder="One or two sentences about what you sell or do." oninput="state.setup.description=this.value" style="max-width:520px">${esc(state.setup.description||'')}</textarea>
+    </div>
+    <div class="row" style="display:block">
+      <label>Industry code (NAICS)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" value="${esc(state.setup.naics||'')}" placeholder="Click ‘Look up’ to search by keyword" readonly style="background:#fafafa;max-width:320px">
+        <button onclick="window.__openNaics()">Look up NAICS →</button>
+      </div>
+    </div>
+    <div class="row" style="display:block">
       <label>EIN <span class="muted small">(optional)</span></label>
-      <input type="text" value="${esc(state.setup.ein||'')}" placeholder="00-0000000" oninput="state.setup.ein=this.value" style="max-width:420px">
+      <input type="text" value="${esc(state.setup.ein||'')}" placeholder="00-0000000" oninput="state.setup.ein=this.value" style="max-width:320px">
+    </div>
+    <div class="row" style="display:block">
+      <label>Address</label>
+      <input type="text" value="${esc(state.setup.addr1||'')}" placeholder="Street address" oninput="state.setup.addr1=this.value" style="max-width:520px">
+      <input type="text" value="${esc(state.setup.addr2||'')}" placeholder="Street address 2" oninput="state.setup.addr2=this.value" style="max-width:520px;margin-top:4px">
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <input type="text" value="${esc(state.setup.city||'')}" placeholder="City" oninput="state.setup.city=this.value" style="flex:1">
+        <input type="text" value="${esc(state.setup.state||'')}" placeholder="State" oninput="state.setup.state=this.value" style="width:60px">
+        <input type="text" value="${esc(state.setup.zip||'')}" placeholder="ZIP" oninput="state.setup.zip=this.value" style="width:100px">
+      </div>
+    </div>
+    <div class="row"><span>Accounting method</span>
+      <select onchange="state.setup.accounting_method=this.value">
+        <option value="cash" ${state.setup.accounting_method==='cash'?'selected':''}>Cash (v1 default)</option>
+        <option value="accrual" ${state.setup.accounting_method==='accrual'?'selected':''} disabled>Accrual (coming later)</option>
+      </select>
+    </div>
+    <div class="row"><span>Fiscal year starts</span>
+      <select onchange="state.setup.fy_month=Number(this.value)">
+        ${['January','February','March','April','May','June','July','August','September','October','November','December'].map((m,i)=>`<option value="${i+1}" ${state.setup.fy_month===i+1?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+    <div class="row"><span>Business started on</span>
+      <input type="date" value="${esc(state.setup.started_on||'')}" oninput="state.setup.started_on=this.value">
     </div>
     <div class="row"><span>Currency</span>
       <select onchange="state.setup.currency=this.value">
         ${['USD','CAD','EUR','GBP','AUD','MXN'].map(c => `<option ${state.setup.currency===c?'selected':''}>${c}</option>`).join('')}
       </select>
     </div>
+    <div class="row"><span>Business type</span><span class="pill">Sole proprietor</span></div>
   `;
-  const sortByName = (state.catDefaultSort||'name')==='name';
+  const sortByCode = (state.catDefaultSort||'code')==='code';
+  const codeSortDisabled = !state.showNumbers;
   const categories = () => `
-    <div class="row"><span>Open categories page</span><button onclick="state.screen='mgmt';render()">Go to categories →</button></div>
     <div class="row" style="display:block">
       <div style="font-weight:500">Default sort</div>
       <div class="help" style="margin:2px 0 8px">How the Categories Management page sorts rows on first open. Click column headers to override for a single session.</div>
       <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13.5px">
-        <input type="radio" name="catDefaultSort" ${sortByName?'checked':''} onchange="state.catDefaultSort='name';state.sortMgmt=null;render()"> Alphabetical by name
+        <input type="radio" name="catDefaultSort" ${!sortByCode?'checked':''} onchange="state.catDefaultSort='name';state.sortMgmt=null;window.__renderMgmtTable()"> Alphabetical by name
       </label>
-      <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13.5px">
-        <input type="radio" name="catDefaultSort" ${!sortByName?'checked':''} onchange="state.catDefaultSort='code';state.sortMgmt=null;render()"> Alphabetical by code
+      <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13.5px${codeSortDisabled?';opacity:.5':''}">
+        <input type="radio" name="catDefaultSort" ${sortByCode?'checked':''} ${codeSortDisabled?'disabled':''} onchange="state.catDefaultSort='code';state.sortMgmt=null;window.__renderMgmtTable()"> Numerical by code ${codeSortDisabled?'<span class="muted small">(requires "Show 4-digit account numbers")</span>':''}
       </label>
     </div>
     <div class="row" style="display:flex;justify-content:space-between;align-items:center">
