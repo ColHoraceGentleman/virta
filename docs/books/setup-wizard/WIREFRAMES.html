@@ -855,9 +855,10 @@ function mgmtUnifiedRow(prefix, item, i){
     ? '<td class="right nowrap muted">—</td>'
     : (() => { const b = state.txnCounts[item.code]; return `<td class="right nowrap">${b==null?'<span class="muted">—</span>':(b<0?'−':'') + '$' + Math.abs(b).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td>`; })();
   const rowCls = `${item.system?'review-later ':''}${item.is_hidden?'is-hidden':''}`.trim();
+  /* Round 12: Code column renders first (leftmost) when shown — was second after Name. */
   return `<tr class="${rowCls}">
-    <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
     ${numCell}
+    <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
     ${typeCell}
     <td class="linecol">${taxLineCell}</td>
     ${balanceCell}
@@ -913,8 +914,8 @@ function renderMgmt(){
   const tableRows = filtered.map(r => mgmtUnifiedRow(r.prefix, r, r.i)).join('');
 
   const headers = `
-    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
     ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
+    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
     <th>Type</th>
     <th>Tax Line Item</th>
     <th class="right">Balance</th>
@@ -978,8 +979,8 @@ window.__renderMgmtTable = ()=>{
   filtered = [...filtered].sort((a,b)=> sysPinnedFirst(a,b) || by(a,b));
   const tableRows = filtered.map(r => mgmtUnifiedRow(r.prefix, r, r.i)).join('');
   const headers = `
-    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
     ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
+    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
     <th>Type</th>
     <th>Tax Line Item</th>
     <th class="right">Balance</th>
