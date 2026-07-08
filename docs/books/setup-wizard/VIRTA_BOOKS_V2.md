@@ -1,14 +1,16 @@
 # Virta Books v2 — Snapshot & Working Doc
 
-**Status:** v2 design phase (NOT build phase). Wireframe + spec complete after rounds 1–14 on 2026-07-08.
+**Status:** v2 design phase (NOT build phase). Wireframe + spec complete after rounds 1–14 on 2026-07-08. Everything else (live app + backlog) is now called **v1**.
 **Started:** 2026-07-08 17:15 MDT (Patrick's call after session close-out).
 **Build philosophy:** step-by-step with the build → demo → play → decide gate (see `projects/process/ENGINEERING.md` §5.9). No section advances until the previous one is built, demoed, and Patrick thumbs-up.
 
 ---
 
-## What "v2" means
+## What "v1" and "v2" mean
 
-The wireframe scope from this morning's session is the **v2 starting baseline**. Everything else (Categorize, Invoices, Reconcile, Reports, etc.) is **deep v1 backlog** — may or may not survive into a real build. v2 will be grown by adding design features on top of this baseline, then built for real once the design feels complete enough.
+**v1 = everything that already exists.** The live built app (Phases A through E.2 — Foundation, Invoicing, Import/Categorization, Reports, Reconciliation), plus all backlog items (Categorize/Transactions/Invoices pages, Reconcile E.3, Reports, Dedupe hardening F1, Settings → Other, bulk triage, sub-hierarchies UI, accrual, inventory/COGS, multi-entity). All of it is now lumped together as **v1** — parked, not actively worked, may or may not carry forward into whatever gets built for real.
+
+**v2 = the new design phase**, starting from the wireframe scope in this morning's session. v2 is grown by adding design features on top of this baseline, then built for real once the design feels complete enough. v1 does not get silently promoted into v2 — anything from v1 that should be in v2 needs an explicit Patrick call.
 
 **In scope (v2 starting baseline, 2026-07-08 close-out):**
 - Setup Wizard (6 steps: Welcome + 5 form steps, merged owner+identity+tax step, NAICS modal, edit-on-review)
@@ -17,7 +19,7 @@ The wireframe scope from this morning's session is the **v2 starting baseline**.
 - Settings → General (business name, EIN, currency)
 - Settings → Categories (default sort, show account numbers)
 
-**Out of scope for v2 baseline (deep v1 backlog — design TBD, may or may not be added to v2):**
+**v1 (everything else — parked, not in v2 unless explicitly added):**
 - Categorize / Transactions / Invoices pages
 - Reconciliation (Phase E.1/E.2/E.3 work)
 - Reports (Phase D: AR aging, Schedule C export, trial balance)
@@ -61,10 +63,10 @@ When v2 feels complete, we move to build phase. Build phase uses the build-demo-
 
 ---
 
-## v2 scope rules (Patrick's 2026-07-08 17:15 MDT call)
+## v2 scope rules (Patrick's 2026-07-08 17:15/17:17 MDT calls)
 
 - The wireframe-from-this-morning is **the only thing considered v2-approved right now**.
-- Anything not in that wireframe is **deep v1 backlog that may or may not be used** — do not silently promote it into v2.
+- Everything else — the live built app AND the backlog — is lumped together as **v1**. It may or may not be used going forward.
 - Adding to v2 is intentional and Patrick-driven. Each addition is a deliberate design feature, not "we'll need this eventually."
 
 ---
@@ -79,9 +81,9 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
    - Sidebar stale counts `Income (4) / Expenses (18) / Other (8)` — hardcoded markup leftover, not visible after round 7's collapse to single Categories link.
    - `state.activeTab` dead code since round 5.
    - Legacy `catFilter` routing at bottom of script — unreachable after round-7 collapse.
-4. **Settings → Other tab content** is undefined in the spec. It exists in the wireframe (`renderSettings()` with `state.settingsTab === 'other'`) but renders an empty placeholder. Spec §11 (multi-entity / future-proofing) sketches what it could hold. **Not in v2 baseline.**
-5. **E.2 demo `demos/2026.07.07-E2-reconcile.mp4`** is still UNREVIEWED. Blocks Reconcile-related work but not v2 baseline. (Reconcile is out of v2 scope anyway.)
-6. **Wren's two Q1/Q2 design questions from 2026-07-06** are still unanswered. Block E.3 fix-pass. Not in v2 scope.
+4. **Settings → Other tab content** is undefined in the spec. It exists in the wireframe (`renderSettings()` with `state.settingsTab === 'other'`) but renders an empty placeholder. Spec §11 (multi-entity / future-proofing) sketches what it could hold. **v1, not in v2 baseline.**
+5. **E.2 demo `demos/2026.07.07-E2-reconcile.mp4`** is still UNREVIEWED. **v1** — blocks Reconcile-related work if v1 is ever resumed, but not relevant to v2.
+6. **Wren's two Q1/Q2 design questions from 2026-07-06** are still unanswered. **v1** — blocks E.3 fix-pass if v1 is ever resumed. Not in v2 scope.
 
 ---
 
@@ -96,7 +98,7 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 4. Ask Patrick what design feature to add next, or whether to start the build phase.
 
 **What I should NOT do:**
-- Pull in Categorize / Invoices / Reconcile / Reports scope without an explicit "add X to v2" call.
+- Pull in v1 scope (Categorize / Invoices / Reconcile / Reports / anything else already built or backlogged) without an explicit "add X to v2" call.
 - Start building for real (writing React components, DB migrations, etc.) without an explicit "start build" call.
 - Treat this doc as the only source of truth — the wireframe and spec are equally authoritative; this doc points at them.
 
@@ -106,4 +108,5 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 
 | Date | Change | Commit |
 |---|---|---|
-| 2026-07-08 17:15 MDT | v2 snapshot created. Baseline = round 1–14 wireframe close-out. | (this doc, not yet committed) |
+| 2026-07-08 17:15 MDT | v2 snapshot created. Baseline = round 1–14 wireframe close-out. | `b6b4d05` |
+| 2026-07-08 17:17 MDT | Naming clarified: everything outside the v2 wireframe (live built app + backlog) is collectively **v1**. | (this doc) |
