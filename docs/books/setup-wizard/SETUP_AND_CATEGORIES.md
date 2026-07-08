@@ -1,7 +1,7 @@
 # Virta Books — Setup Wizard & Categories Management Spec
 
 **Owner:** Rusty
-**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer). **Round 3 applied 2026-07-08** (stripped step 1, renamed Your Name, fixed step 6 UX). **Round 4 applied 2026-07-08** (Chantelle-specific placeholders removed; Categories wizard step 2 got Hide/Delete + sticky header + sortable columns + "show account numbers" wizard prompt; step 3 reordered (Sales first, Other Income last); step 4 unified to single Add Account button; Add modal got Type picker + Note field + relabeled "Tax Line Item (Schedule C of IRS Form 1040)").
+**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer). **Round 3 applied 2026-07-08** (stripped step 1, renamed Your Name, fixed step 6 UX). **Round 4 applied 2026-07-08** (Chantelle-specific placeholders removed; Categories wizard step 2 got Hide/Delete + sticky header + sortable columns + "show account numbers" wizard prompt; step 3 reordered (Sales first, Other Income last); step 4 unified to single Add Account button; Add modal got Type picker + Note field + relabeled "Tax Line Item (Schedule C of IRS Form 1040)"). **Round 5 applied 2026-07-08** (single-page Categories Management with search + 4 filter chips + Show hidden + new Settings → Categories subsection). **Round 6 applied 2026-07-08** (welcome uses checkbox not toggle; IRS Form 1040 introduced before Schedule C; step 2 cells got Edit + Hide + Delete with no inline rename + Category Name + Tax Description + Review Later moved fully off step 2 to step 5; "Skip" button became "Revert to Defaults" when state has changed; edit modal got a generic Notes field; Delete closure bug fixed; step 2 window taller; sticky-header rule confirmed global for in-wizard and management lists).
 **Replaces:** Section 1 (Chart of Accounts) of `ACCOUNTING-v1.md` — keeps the rest of v1 intact.
 
 ---
@@ -72,6 +72,23 @@ Decisions from the 2026-07-07 planning session, locked in:
 | D22 | Categories Wizard step 4 has a single top-of-step "Add account" button that opens the generic Add modal with a Type picker. No per-subheader Add buttons. |
 | D23 | Default Income ordering: **Sales → Refunds & Returns → Other Income** (not alphabetical). Codes: 4000/4010/4020. Sales at 4000 because it's the primary inflow. "Other Income" last because it's the catch-all for refund/adjustment edge cases. |
 | D24 | Add Account modal is generic — used by both wizard and management screens. Fields: **Type** (Expense / Asset / Liability / Equity / Income) + Name + Code + **Tax Line Item (Schedule C of IRS Form 1040)** + **Note**. Type picker changes which Schedule C line options are shown (expense → expense lines, income → income lines, others → no line). |
+| D25 | Categories Management page is **single-page** (not tabbed). Above the table: search bar + 4 filter chips (**Show All / Expenses / Revenue / Assets-Liabilities-Equity**) + **Show hidden** toggle. Search matches name + code + descriptor (case-insensitive substring). Default chip = "Show All". Filter state persists in URL/query string (e.g. `?filter=expenses&q=rent`) so the user can bookmark or share. |
+| D26 | "Show hidden" toggle on Categories Management: when **off** (default), hidden categories are filtered out of the view entirely. When **on**, hidden rows are included in the table and rendered with the same strikethrough/opacity-45 styling used in the wizard. Toggle state persists per session (no URL param). |
+| D27 | **Settings → Categories** section is its own subsection of global settings. Controls: **Default sort** (radio: "Alphabetical by name" / "Alphabetical by code", default = by name) + **Show account numbers** (toggle, default OFF per D21 cascade). Selecting a new default sort updates the Categories Management table immediately and writes to `settings.category_default_sort` for persistence. |
+| D28 | Categories Management table headers are clickable for sort (same pattern as wizard: `↑`/`↓`/`↕` indicators). Active sort overrides the Settings default until the user navigates away. |
+| D29 | Wizard step 1 "Show 4-digit account numbers" preference uses a **checkbox** (not a toggle switch or radio) — clearer mental model. Same default (OFF) and behavior as D21. |
+| D30 | Categories wizard rows show **no inline rename**. Editing a row's name happens only via the existing **Edit** modal (same one used in Categories Management). Each row therefore offers three actions: **Edit / Hide / Delete**, all in one cell. |
+| D31 | Categories table column "Descriptor" is renamed to **"Tax Description"**. The cell shows the IRS descriptor of the mapped line (e.g. "Bookkeeper, accountant fees"). Not editable in the row — determined by the tax classification. For free-form user notes, use the new **Notes / Description** field in the Edit modal (separate from Tax Description). |
+| D32 | "Review Later" system category does **not** appear in the Categories wizard step 2 (expense) table. It is created on step 5 with name **"Uncategorized Items Needing Review"** and code **9999**, with a brief explainer. Removing it from step 2 keeps the user-facing expense choices focused on real categories. |
+| D33 | Wizard step-CTA "Skip (use all defaults)" becomes **"Revert to Defaults"** when the user has changed anything on that step (hide / delete / rename / add). Clicking restores the default seed for the current step's account list. Label reverts to "Skip (use all defaults)" when no changes are present. |
+| D34 | Sticky header on categories tables is global: any list using `.cat-table` class (wizard steps 2/3/4/5 + management screen) gets `position: sticky; top: 0; z-index: 2` on its `<th>` cells. Confirmed working for the management screen as part of round 4. |
+| D35 | Edit Account modal is generic (used in both wizard and management). Fields: **Name** + **Code** + **Tax Line Item (Schedule C of IRS Form 1040)** + **Type** + **Notes / Description** (free text, separate from Tax Description). The Notes field is the user-facing description / context for the category, displayed in audit logs and Reports drill-down. |
+| D29 | Wizard step 1 "Show 4-digit account numbers" preference uses a **checkbox** (not a toggle switch or radio) — clearer mental model. Same default (OFF) and behavior as D21. |
+| D30 | Categories wizard rows show **no inline rename**. Editing a row's name happens only via the existing **Edit** modal (same one used in Categories Management). Each row therefore offers three actions: **Edit / Hide / Delete**, all in one cell. |
+| D31 | Categories table label "Descriptor" is renamed to **"Tax Description"**. The cell shows the IRS descriptor of the mapped line (e.g. "Bookkeeper, accountant fees"). Not editable in the row — determined by the tax classification. For free-form user notes, use the new **Notes / Description** field in the Edit modal (separate from Tax Description). |
+| D32 | "Review Later" system category does **not** appear in the Categories wizard step 2 (expense) table. It is created on step 5 with name **"Uncategorized Items Needing Review"** and code **9999**, with a brief explainer. Removing it from step 2 keeps the user-facing expense choices focused on real categories. |
+| D33 | Wizard step-CTA "Skip (use all defaults)" becomes **"Revert to Defaults"** when the user has changed anything on that step (hide / delete / rename / add). Clicking restores the default seed for the current step's account list. Label reverts to "Skip (use all defaults)" when no changes are present. |
+| D34 | Sticky header on categories tables is global: any list using `.cat-table` class (wizard steps 2/3/4/5 + management screen) gets `position: sticky; top: 0` on its `<th>` cells. |
 
 ---
 
@@ -381,24 +398,45 @@ Finish writes all `accounts` rows and routes to the dashboard.
 
 Once the wizard is complete, the user can manage categories from a permanent screen: **Settings → Categories** (or sidebar link).
 
-### 8.1 List view
+### 8.1 List view (single-page)
 
-Three tabs:
+A **single page**, not tabbed. Top of the page has a toolbar with controls; below that is one unified table containing all categories that pass the current filters.
 
-| Tab | Shows |
-|---|---|
-| Income | All income accounts |
-| Expenses | All expense accounts, Review Later pinned to top |
-| Other | Assets, Liabilities, Equity, grouped |
+**Toolbar layout:**
 
-Each row:
-| Name | Number | Schedule C line | Transactions | ⋯ menu |
+```
+[ 🔍 Search categories...                          ]   ← text input, debounced 150ms
+( ) Show All  ( ) Expenses  ( ) Revenue  ( ) A/L/E   ← filter chips; default = Show All
+                                                                 [Show hidden]   ← toggle; default off
 
-Menu:
-- Edit (rename, change Schedule C line, change number)
-- Disable (sets `is_active = 0`, hides from pickers; reversible)
-- Delete (blocked if transactions reference — see delete flow below)
-- Merge with… (pick destination account; see merge flow below)
+(typography legend above the table for clarity)
+```
+
+**Behavior:**
+
+- **Search bar** — case-insensitive substring match across Name, Code, and Descriptor (Schedule C line description). Empty = match all.
+- **Filter chips** — 4 mutually exclusive values. Default = `Show All`. Selecting a chip filters the table to rows with that `account_type`:
+  - `Show All` → every type visible
+  - `Expenses` → Expense accounts only
+  - `Revenue` → Income accounts only
+  - `Assets/Liabilities/Equity` → Asset + Liability + Equity accounts
+- **Show hidden toggle** — default OFF. When OFF, hidden rows are completely filtered out. When ON, hidden rows appear in the table with the same strikethrough + opacity-45 styling used in the wizard (so the user can re-decide).
+- Filter state + search query + show-hidden state are reflected in the URL: `?filter=expenses&q=rent&hidden=1`. Bookmarking, sharing, and back-button all preserve state.
+
+**Unified table** — one table for everything that matches the filters. Schema:
+
+| Name ↑↓ | Code ↑↓ | Type | Tax line | Transactions | ⋯ |
+
+- **Sortable headers** — `↑` / `↓` / `↕` indicators. Default sort = the value from Settings → Categories (per D27). Until the user clicks a header, the table follows that default. First click on a header takes over with ascending, second click toggles descending, click on a different header resets to ascending.
+- **Type column** — for income rows: "Income"; for expense rows: "Expense"; for other: "Asset" / "Liability" / "Equity" (the row's actual type, not a grouping).
+- Tax line — badge (Line 8 / Line 16b / Part I line 1 / etc.) for income + expense; "—" for asset/liability/equity.
+- Transactions column — count of journal entries referencing this account. Click → navigates to Reports → Transactions filtered to that account.
+- ⋯ menu:
+  - Edit (rename, change code, change Schedule C line)
+  - Disable (sets `is_active = 0`, hides from pickers; reversible)
+  - Delete (blocked if transactions reference — see §8.3)
+  - Merge with… (pick destination account — see §8.4)
+  - Hide / Show (toggles the global hidden flag — same flag as the wizard's Hide button)
 
 ### 8.2 Add account modal (generic, used everywhere)
 
@@ -441,7 +479,32 @@ If user edits a category's Schedule C line on a category with existing transacti
 - Inline confirmation: "Changing the Schedule C line affects how this category's transactions appear on tax exports. Continue?"
 - Yes → line updated, all historical transactions rerouted in any aggregate view (they live on the account, not the line)
 
-### 8.6 Rename flow
+### 8.6 Categories Settings (subsection of global Settings)
+
+A dedicated subsection in the global Settings screen, reached via the sidebar link "Settings → Categories" or via the "Manage categories" entry point on the dashboard.
+
+**Controls:**
+
+```
+Categories                                    [Open categories page →]
+Default categories page behavior.
+
+Default sort
+  ( ) Alphabetical by name          (default — what D16 establishes)
+  ( ) Alphabetical by code
+
+Show 4-digit account numbers
+  [○ ◯]
+  Some accountants and business owners like to track their accounts with account numbers.
+```
+
+**Field-level behavior:**
+
+- **Default sort** — radio. Two values: "Alphabetical by name" (default, writes to `settings.category_default_sort = 'name'`) or "Alphabetical by code" (writes `='code'`). Selection immediately re-sorts the Categories Management table if the user has it open in another tab. Persists across sessions.
+- **Show account numbers** — toggle (default OFF, per D21). Same setting as the wizard's Step 1 toggle — the value is shared via `settings.show_account_numbers`. Toggling here updates the wizard view in the same session.
+- **[Open categories page →]** button — navigates to the Categories Management screen (§8.1).
+
+### 8.7 Rename flow
 
 Same as v1 spec: rename is cosmetic, no confirmation needed. Transactions stay.
 
