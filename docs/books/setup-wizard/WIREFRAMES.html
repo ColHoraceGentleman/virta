@@ -27,6 +27,9 @@
   .nav a.active{background:#1f2937;color:#fff}
   .nav .sub{padding-left:26px;font-size:12.5px;color:#9ca3af;display:flex;justify-content:space-between}
   .nav .badge{background:var(--badge);color:var(--badge-ink);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:600}
+  .nav .review-pill{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:50%;background:var(--badge);color:var(--badge-ink);font-size:11px;font-weight:600;line-height:1;padding:0 4px}  /* D45: small circular Review Later badge */
+  .tab-btn{font:inherit;cursor:pointer;background:transparent;border:0;border-bottom:2px solid transparent;padding:8px 14px;color:var(--ink-soft);font-size:13.5px;margin-bottom:-1px}
+  .tab-btn.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:500}
   .nav .section{color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin:14px 8px 4px}
   main{padding:28px 36px}
   .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
@@ -70,7 +73,14 @@
   .radio-card .pill{display:inline-block;font-size:11px;font-weight:600;background:#e5e7eb;color:#374151;padding:1px 7px;border-radius:99px;margin-top:6px}
   .radio-card.disabled .pill{background:#fde68a;color:#92400e}
   .cat-table{width:100%;border-collapse:separate;border-spacing:0}
-  .cat-table th,.cat-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+  .cat-table th,.cat-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cat-table{table-layout:fixed;width:100%}  /* D41: fixed column widths so editing a name doesn't reflow */
+  .cat-table .col-code{width:80px}
+  .cat-table .col-name{width:auto}
+  .cat-table .col-taxline{width:auto}
+  .cat-table .col-type{width:96px}
+  .cat-table .col-txn{width:90px;text-align:right}
+  .cat-table .col-actions{width:140px}
   .cat-table th{color:var(--ink-soft);font-weight:600;background:#fafafa;position:sticky;top:0;z-index:2;user-select:none}  /* D34: global sticky header for all .cat-table instances (wizard 2/3/4/5 + management) */
   .cat-table th.sortable{cursor:pointer}
   .cat-table th.sortable:hover{background:#f3f4f6}
@@ -115,6 +125,11 @@
   .wiz-toolbar .add-btn:hover{background:#27643f}
   .wiz-toolbar .accnum-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft)}
   tr.is-hidden td{opacity:.45;text-decoration:line-through}
+  /* D40: CTAs inside the scrollable table container, sticky-bottom — no double scroll */
+  .step-window{position:relative;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;max-height:calc(100vh - 320px)}  /* D48: viewport-relative */
+  .step-window .scroll{flex:1 1 auto;overflow:auto;min-height:0}
+  .step-window .step-cta-inside{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--line);background:#fafafa;position:sticky;bottom:0;z-index:2}
+  .step-window .step-cta-inside .right{display:flex;gap:8px}
   .chip{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:#fff;color:var(--ink-soft);border-radius:999px;padding:5px 12px;font-size:12.5px}
   .chip:hover{background:#f3f4f6}
   .chip-on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:500}
@@ -141,9 +156,7 @@
       <a href="#" data-screen="invoices">🧾 Invoices</a>
       <a href="#" data-screen="transactions">💸 Transactions</a>
       <div class="section">Categories</div>
-      <a href="#" data-screen="income" class="sub"><span>• Income (4)</span></a>
-      <a href="#" data-screen="expenses" class="sub"><span>• Expenses (18)</span><span class="badge" id="reviewBadge" hidden>Review Later · 3</span></a>
-      <a href="#" data-screen="other" class="sub"><span>• Other (8)</span></a>
+      <a href="#" onclick="state.screen='mgmt';state.catFilter='all';render()" class="sub"><span>• Categories</span><span class="review-pill" id="reviewBadge" hidden>0</span></a>
       <div class="section">Setup</div>
       <a href="#" data-screen="setup">🚀 Run setup wizard</a>
       <a href="#" data-screen="settings" class="active">⚙️ Settings</a>
@@ -208,7 +221,7 @@ const DEFAULT_EXPENSE = [
   {code:'6190',name:'Travel',line:'line-22'},
   {code:'6200',name:'Utilities',line:'line-24'},
   {code:'6210',name:'Wages',line:'line-26'},
-  {code:'9999',name:'Uncategorized Items Needing Review',line:null,system:true}
+  {code:'9999',name:'Review Later',line:null,system:true}
 ];
 const DEFAULT_INCOME = [
   {code:'4000',name:'Sales',line:'part-i-1'},
@@ -242,6 +255,7 @@ const state = {
   catSearch:'',
   catShowHidden:false,
   catDefaultSort:'name', /* sourced from settings (D27) */
+  settingsTab:'general',  /* D49: settings page section tab (general|categories|other) */
   sortMgmt:null,         /* active sort on the management table; null = follow catDefaultSort */
   reviewLaterTxnCount:3,
   txnCounts:{'6000':12,'6100':4,'6500':7}
@@ -266,7 +280,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function lineLabel(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?`${m.label} — ${m.desc}`:'—';}
 function lineShort(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?m.label:(id?id:'—');}
-function refreshBadge(){const b=$('#reviewBadge');if(state.reviewLaterTxnCount>0){b.hidden=false;b.textContent=`Review Later · ${state.reviewLaterTxnCount}`;}else b.hidden=true;}
+function refreshBadge(){const b=$('#reviewBadge');if(!b) return; const n = state.reviewLaterTxnCount||0; if(n>0){ b.hidden=false; b.textContent = String(n); } else { b.hidden = true; }}
 function progressDots(steps,cur){return steps.map(s=>{const cls=s.n<cur?'done':(s.n===cur?'current':'');return `<span class="dot ${cls}"></span>${s.n<steps.length?`<span class="bar ${s.n<cur?'fill':''}"></span>`:''}`;}).join('');}
 function topbar(title,crumbs){return `<div class="topbar"><div><div class="crumbs">${crumbs.map(c=>`<span class="crumb">${esc(c)}</span>`).join(' ')}</div><h1>${esc(title)}</h1></div><div class="right small muted">Wireframe · click any step to advance</div></div>`;}
 
@@ -660,23 +674,25 @@ function renderCats(){
         <div></div>
         <button class="add-btn" onclick="window.__openAdd('expense')">+ Add expense category</button>
       </div>
-      <div style="max-height:640px;overflow:auto;border:1px solid var(--line);border-radius:8px">
-        <table class="cat-table">
-          <thead><tr>
-            ${state.showNumbers ? sortHeader('expenses','code','Code') : ''}
-            ${sortHeader('expenses','name','Category name')}
-            ${sortHeader('expenses','line','Tax Line Item')}
-            <th></th>
-          </tr></thead>
-          <tbody>${catRowInputs('expenses', list)}</tbody>
-        </table>
-      </div>
-    </div>
-    <div class="step-cta">
-      <button onclick="state.catsStep=1;render()">Back</button>
-      <div class="right">
-        <button onclick="window.${skipAction2};render()">${skipBtn2}</button>
-        <button class="primary" onclick="state.catsStep=3;render()">Save &amp; continue →</button>
+      <div class="step-window">  <!-- D40: CTAs live inside the scroll window, sticky-bottom -->
+        <div class="scroll">
+          <table class="cat-table">
+            <thead><tr>
+              ${state.showNumbers ? sortHeader('expenses','code','Code') : ''}
+              ${sortHeader('expenses','name','Category name')}
+              ${sortHeader('expenses','line','Tax Line Item')}
+              <th></th>
+            </tr></thead>
+            <tbody>${catRowInputs('expenses', list)}</tbody>
+          </table>
+        </div>
+        <div class="step-cta-inside">
+          <button onclick="state.catsStep=1;render()">Back</button>
+          <div class="right">
+            <button onclick="window.${skipAction2};render()">${skipBtn2}</button>
+            <button class="primary" onclick="state.catsStep=3;render()">Save &amp; continue →</button>
+          </div>
+        </div>
       </div>
     </div>`;
   } else if(s===3){
@@ -688,23 +704,25 @@ function renderCats(){
         <div></div>
         <button class="add-btn" onclick="window.__openAdd('income')">+ Add income category</button>
       </div>
-      <div style="max-height:640px;overflow:auto;border:1px solid var(--line);border-radius:8px">
-        <table class="cat-table">
-          <thead><tr>
-            ${state.showNumbers ? sortHeader('income','code','Code') : ''}
-            ${sortHeader('income','name','Category name')}
-            ${sortHeader('income','line','Tax Line Item')}
-            <th></th>
-          </tr></thead>
-          <tbody>${catRowInputs('income', sortedList('income', state.income))}</tbody>
-        </table>
-      </div>
-    </div>
-    <div class="step-cta">
-      <button onclick="state.catsStep=2;render()">Back</button>
-      <div class="right">
-        <button onclick="window.${skipAction3};render()">${skipBtn3}</button>
-        <button class="primary" onclick="state.catsStep=4;render()">Save &amp; continue →</button>
+      <div class="step-window">
+        <div class="scroll">
+          <table class="cat-table">
+            <thead><tr>
+              ${state.showNumbers ? sortHeader('income','code','Code') : ''}
+              ${sortHeader('income','name','Category name')}
+              ${sortHeader('income','line','Tax Line Item')}
+              <th></th>
+            </tr></thead>
+            <tbody>${catRowInputs('income', sortedList('income', state.income))}</tbody>
+          </table>
+        </div>
+        <div class="step-cta-inside">
+          <button onclick="state.catsStep=2;render()">Back</button>
+          <div class="right">
+            <button onclick="window.${skipAction3};render()">${skipBtn3}</button>
+            <button class="primary" onclick="state.catsStep=4;render()">Save &amp; continue →</button>
+          </div>
+        </div>
       </div>
     </div>`;
   } else if(s===4){
@@ -733,27 +751,28 @@ function renderCats(){
         <div></div>
         <button class="add-btn" onclick="window.__openAdd('other')">+ Add account</button>
       </div>
-      ${groups.map(groupBlock).join('')}
-    </div>
-    <div class="step-cta">
-      <button onclick="state.catsStep=3;render()">Back</button>
-      <div class="right">
-        <button onclick="window.${skipAction4};render()">${skipBtn4}</button>
-        <button class="primary" onclick="state.catsStep=5;render()">Save &amp; continue →</button>
+      <div class="step-window">
+        <div class="scroll">
+          ${groups.map(groupBlock).join('')}
+        </div>
+        <div class="step-cta-inside">
+          <button onclick="state.catsStep=3;render()">Back</button>
+          <div class="right">
+            <button onclick="window.${skipAction4};render()">${skipBtn4}</button>
+            <button class="primary" onclick="state.catsStep=5;render()">Save &amp; continue →</button>
+          </div>
+        </div>
       </div>
     </div>`;
   } else if(s===5){
     body=`<div class="step-body">
-      <div class="infobox">
-        <strong>Uncategorized Items Needing Review</strong> is a system expense bucket (code 9999) that Virta uses when it can't confidently categorize a transaction. Anything the auto-categorizer isn't sure about goes here. You can move items to the right category any time.
-      </div>
+      <p>Review Later is a default expense bucket for when you can't confidently categorize a transaction. Once you have discovered the correct category, you can come back and move items to the right category any time.</p>
       <table class="cat-table">
         <tbody><tr class="review-later">
           ${state.showNumbers ? '<td><code>9999</code></td>' : ''}
-          <td><strong>Uncategorized Items Needing Review</strong> <span class="pill system">system</span></td>
-          <td class="muted">—</td>
+          <td><strong>Review Later</strong> <span class="pill system">system</span></td>
           <td class="desc">No Schedule C mapping by design. Badge count in sidebar shows outstanding items.</td>
-          <td class="row-actions muted small">—</td>
+          <td class="row-actions muted small">system</td>
         </tr></tbody>
       </table>
     </div>
@@ -764,9 +783,10 @@ function renderCats(){
       </div>
     </div>`;
   } else if(s===6){
-    const expOn=state.expenses.filter(e=>e.on).length;
-    const incOn=state.income.filter(e=>e.on).length;
-    const othOn=state.other.filter(e=>e.on).length;
+    /* D44: use length directly — old `e.on` filter was a round-2 leftover and showed 0 */
+    const expOn=state.expenses.length;
+    const incOn=state.income.length;
+    const othOn=state.other.length;
     body=`<div class="step-body">
       <p>Quick review before you finish setup.</p>
       <dl class="review-summary">
@@ -929,8 +949,7 @@ window.__openModal = (title, body, buttons) => {
 };
 window.closeModal = ()=>$('#modalBack').classList.remove('open');
 window.__openAdd = (kind)=>{
-  /* `kind` is the wizard's calling context: 'expense' | 'income' | 'other'.
-     The Type dropdown defaults to that context. */
+  /* D47: Type is FREE in the Add modal (not wizard-locked). The `kind` arg just sets a sensible default. */
   const typeDefault = kind==='income' ? 'Income' : (kind==='other' ? 'Asset' : 'Expense');
   const lineOptionsFor = (type) => {
     if(type==='Income') return IRS_INCOME_LINES;
@@ -941,6 +960,13 @@ window.__openAdd = (kind)=>{
     .map(t=>`<option value="${t}" ${t===typeDefault?'selected':''}>${t}</option>`).join('');
   const buildLineOpts = (type) => lineOptionsFor(type)
     .map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
+  /* D46: code field only when account numbers are on */
+  const codeField = state.showNumbers ? `
+    <label>Code</label>
+    <input type="text" id="m-code" placeholder="e.g. 6300" inputmode="numeric" maxlength="4">
+  ` : '';
+  /* D48-related: line-wrap always shown for Expense/Income; lines hidden otherwise. Type picker rebuilds lines on change. */
+  const showLineWrap = typeDefault==='Expense' || typeDefault==='Income';
   window.__openModal('Add account', `
     <label>Type <span class="req">*</span></label>
     <select id="m-type" onchange="document.getElementById('m-line-wrap').style.display=this.value==='Expense'||this.value==='Income'?'':'none';document.getElementById('m-line').innerHTML=window.__buildLineOpts(this.value);">
@@ -948,26 +974,33 @@ window.__openAdd = (kind)=>{
     </select>
     <label>Name <span class="req">*</span></label>
     <input type="text" id="m-name" placeholder="Category name">
-    <label>Code <span class="req">*</span></label>
-    <input type="text" id="m-code" placeholder="e.g. 6300" inputmode="numeric" maxlength="4">
-    <div id="m-line-wrap">
+    ${codeField}
+    <div id="m-line-wrap" ${showLineWrap?'':'style="display:none"'}>
       <label>Tax Line Item (Schedule C of IRS Form 1040) <span class="req">*</span></label>
       <select id="m-line">${buildLineOpts(typeDefault)}</select>
     </div>
-    <label>Notes / Description</label>
-    <textarea id="m-note" rows="2" placeholder="Optional. Shown in audit logs and Reports drill-down."></textarea>
+    <label>Notes</label>
+    <textarea id="m-note" rows="2" placeholder="What is this category used for? (e.g. Dues paid to local trade association)"></textarea>
   `, [{Cancel:'closeModal()'}, {Save:'window.__commitAdd();'}]);
 };
 window.__commitAdd = ()=>{
   const type = (window.document.querySelector('#m-type')||{}).value || 'Expense';
   const name = (window.document.querySelector('#m-name')||{}).value || '';
-  const code = (window.document.querySelector('#m-code')||{}).value || '';
+  /* D46: code only when account numbers are on; auto-suggest next 4-digit if blank */
+  const codeEl = window.document.querySelector('#m-code');
+  let code = codeEl ? codeEl.value : '';
+  if(state.showNumbers && !code){
+    const existing = type==='Income' ? state.income : type==='Expense' ? state.expenses : state.other;
+    const next = existing.length ? Math.max(...existing.map(r => Number(r.code)||0)) + 10 : (type==='Expense'?6000:type==='Income'?4000:1000);
+    code = String(next);
+  }
   const noteEl = window.document.querySelector('#m-note');
   const note = noteEl ? noteEl.value : '';
   const lineEl = window.document.querySelector('#m-line');
   const line = lineEl ? lineEl.value : null;
-  if(!name || !code){ closeModal(); return; } /* wireframe-level guard; real app would show inline validation */
-  const row = { code, name, note, is_hidden:false, is_deleted:false };
+  if(!name){ closeModal(); return; }
+  const row = { name, note, is_hidden:false, is_deleted:false };
+  if(state.showNumbers) row.code = code;
   if(type==='Expense'){ row.line = line; state.expenses.push(row); markDirty('expenses'); }
   else if(type==='Income'){ row.line = line; state.income.push(row); markDirty('income'); }
   else { row.type = type; row.group = type==='Asset' ? 'Cash & bank' : (type==='Liability' ? 'Credit & loans' : 'Equity'); state.other.push(row); markDirty('other'); }
@@ -999,42 +1032,69 @@ window.revertOther = ()=>{
   state._step4Dirty = false;
 };
 
-/* D35: Edit Account modal — generic, with Notes / Description field separate from Tax Description */
+/* D35 + D37 + D38 + D39: Edit Account modal — generic, used in both wizard and management.
+   - Code field is shown only when account numbers are on (D37)
+   - Type picker is always shown; locked in wizard context to the calling step's type (D38)
+   - Notes placeholder: "What is this category used for?" (D39) */
+window.__editType = null;
 window.__openEdit = (prefix,i)=>{
   const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
   const item = arr[i];
   const isOther = prefix === 'other';
-  const lineOptions = prefix==='income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
-  const opts = isOther ? '' : lineOptions.map(l=>`<option value="${l.id}" ${item.line===l.id?'selected':''}>${l.label} — ${l.desc}</option>`).join('');
+  const typeFromPrefix = prefix==='expenses' ? 'Expense' : prefix==='income' ? 'Income' : (item.type || 'Asset');
+  /* D38: type is locked in wizard context. We're called from the wizard here (catsStep 2/3/4 or from the management screen via __openEdit callsite — same modal, same lock semantics in the wizard; free in mgmt). */
+  const inWizard = state.screen === 'cats';
+  window.__editType = typeFromPrefix;
+  const lineOptions = typeFromPrefix==='Income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
+  const opts = isOther || typeFromPrefix==='Asset' || typeFromPrefix==='Liability' || typeFromPrefix==='Equity' ? '' : lineOptions.map(l=>`<option value="${l.id}" ${item.line===l.id?'selected':''}>${l.label} — ${l.desc}</option>`).join('');
+  const typeOpts = ['Expense','Income','Asset','Liability','Equity'].map(t=>`<option value="${t}" ${t===typeFromPrefix?'selected':''} ${inWizard?'disabled':''}>${t}</option>`).join('');
   window.__openModal('Edit account', `
+    <label>Type ${inWizard?'<span class="help" style="margin:0"> (locked — wizard context)</span>':''}</label>
+    <select id="edit-type" ${inWizard?'disabled':''} onchange="window.__editType=this.value; window.__rebuildEditLine()">${typeOpts}</select>
     <label>Name</label>
     <input type="text" id="edit-name" value="${esc(item.name)}">
-    <label>Code</label>
-    <input type="text" id="edit-code" value="${esc(item.code)}">
-    ${isOther ? '' : `
+    ${state.showNumbers ? `
+      <label>Code</label>
+      <input type="text" id="edit-code" value="${esc(item.code)}">
+    ` : ''}
+    ${opts ? `
       <label>Tax Line Item (Schedule C of IRS Form 1040)</label>
       <select id="edit-line">${opts}</select>
       <div class="softwarn">Changing the tax line affects how this category's transactions appear on tax exports.</div>
-    `}
-    <label>Notes / Description</label>
-    <textarea id="edit-note" rows="2" placeholder="Optional. Free-form context shown in audit logs and Reports drill-down.">${esc(item.note || '')}</textarea>
+    ` : ''}
+    <label>Notes</label>
+    <textarea id="edit-note" rows="2" placeholder="What is this category used for? (e.g. Dues paid to local trade association)">${esc(item.note || '')}</textarea>
   `, [
     {Cancel: 'closeModal();'},
     {Save: `window.__commitEdit('${prefix}',${i});`}
   ]);
+};
+/* re-render the line dropdown if user changes Type in management mode */
+window.__rebuildEditLine = ()=>{
+  const t = window.__editType || 'Expense';
+  const src = t==='Income' ? IRS_INCOME_LINES : t==='Expense' ? IRS_EXPENSE_LINES : [];
+  const sel = window.document.querySelector('#edit-line');
+  if(!sel) return;
+  sel.innerHTML = src.map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
 };
 window.__commitEdit = (prefix, i)=>{
   const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
   const item = arr[i];
   if(!item) return;
   const name = (window.document.querySelector('#edit-name')||{}).value;
-  const code = (window.document.querySelector('#edit-code')||{}).value;
   const note = (window.document.querySelector('#edit-note')||{}).value;
   const lineEl = window.document.querySelector('#edit-line');
+  /* D37: Code field only present when account numbers are on */
+  const codeEl = window.document.querySelector('#edit-code');
+  const typeEl = window.document.querySelector('#edit-type');
   if(name != null) item.name = name;
-  if(code != null) item.code = code;
+  if(codeEl && codeEl.value) item.code = codeEl.value;
   if(note != null) item.note = note;
   if(lineEl) item.line = lineEl.value;
+  /* D38: type change persists in management; no-op in wizard (locked) */
+  if(typeEl && !typeEl.disabled && typeEl.value){
+    if(prefix==='other'){ item.type = typeEl.value; }
+  }
   markDirty(prefix);
   closeModal();
   render();
@@ -1083,13 +1143,36 @@ function renderDashboard(){
   refreshBadge();
 }
 function renderSettings(){
+  const tab = state.settingsTab || 'general';
+  /* D49: settings segmented into General / Categories / Other with top-of-page tabs. */
+  const tabBar = (tab) => `
+    <div style="display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px">
+      <button class="tab-btn ${tab==='general'?'on':''}" onclick="state.settingsTab='general';render()">General</button>
+      <button class="tab-btn ${tab==='categories'?'on':''}" onclick="state.settingsTab='categories';render()">Categories</button>
+      <button class="tab-btn ${tab==='other'?'on':''}" onclick="state.settingsTab='other';render()">Other</button>
+    </div>
+  `;
+  const general = () => `
+    <div class="row" style="display:block">
+      <label style="margin-top:0">Business name</label>
+      <input type="text" value="${esc(state.setup.business_name||'')}" placeholder="Your business name" oninput="state.setup.business_name=this.value" style="max-width:420px">
+    </div>
+    <div class="row" style="display:block">
+      <label>EIN <span class="muted small">(optional)</span></label>
+      <input type="text" value="${esc(state.setup.ein||'')}" placeholder="00-0000000" oninput="state.setup.ein=this.value" style="max-width:420px">
+    </div>
+    <div class="row"><span>Currency</span>
+      <select onchange="state.setup.currency=this.value">
+        ${['USD','CAD','EUR','GBP','AUD','MXN'].map(c => `<option ${state.setup.currency===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+  `;
   const sortByName = (state.catDefaultSort||'name')==='name';
-  $('#root').innerHTML = topbar('Settings',['Books','Settings']) + `<div class="settings">
-    <h3>Categories</h3>
-    <div class="row"><span>Manage categories</span><button onclick="state.screen='mgmt';render()">Open categories page →</button></div>
+  const categories = () => `
+    <div class="row"><span>Open categories page</span><button onclick="state.screen='mgmt';render()">Go to categories →</button></div>
     <div class="row" style="display:block">
       <div style="font-weight:500">Default sort</div>
-      <div class="help" style="margin:2px 0 8px">How the Categories Management page sorts rows on first open. You can click column headers to override for a single session.</div>
+      <div class="help" style="margin:2px 0 8px">How the Categories Management page sorts rows on first open. Click column headers to override for a single session.</div>
       <label style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13.5px">
         <input type="radio" name="catDefaultSort" ${sortByName?'checked':''} onchange="state.catDefaultSort='name';state.sortMgmt=null;render()"> Alphabetical by name
       </label>
@@ -1104,17 +1187,16 @@ function renderSettings(){
       </div>
       <div class="switch ${state.showNumbers?'on':''}" onclick="state.showNumbers=!state.showNumbers;render()"></div>
     </div>
-    <h3>Display</h3>
     <div class="row"><span>Review Later badge in sidebar</span><div class="switch on"></div></div>
-    <h3>Accounting</h3>
-    <div class="row"><span>Accounting method</span><span class="pill">Cash</span></div>
+  `;
+  const other = () => `
+    <div class="row"><span>Accounting method</span><span class="pill">Cash</span> <span class="muted small">(v1 only; accrual coming later)</span></div>
     <div class="row"><span>Fiscal year start</span><span class="pill">January</span></div>
-    <div class="row"><span>Currency</span><span class="pill">USD</span></div>
-    <h3>Entity</h3>
     <div class="row"><span>Business type</span><span class="pill">Sole proprietor</span></div>
-    <h3>Help</h3>
     <div class="row"><span>Run setup wizard again</span><button onclick="state.setupStep=1;state.screen='setup';render()">Start over →</button></div>
-  </div>`;
+  `;
+  const body = tab==='general' ? general() : tab==='categories' ? categories() : other();
+  $('#root').innerHTML = topbar('Settings',['Books','Settings']) + `<div class="settings">${tabBar(tab)}<h3 style="margin-top:0">${tab==='general'?'General':tab==='categories'?'Categories':'Other'}</h3>${body}</div>`;
   refreshBadge();
 }
 
