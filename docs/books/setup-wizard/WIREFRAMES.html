@@ -258,7 +258,7 @@ const state = {
   settingsTab:'general',  /* D49: settings page section tab (general|categories|other) */
   sortMgmt:null,         /* active sort on the management table; null = follow catDefaultSort */
   reviewLaterTxnCount:3,
-  txnCounts:{'6000':12,'6100':4,'6500':7}
+  txnCounts:{'6000':12,'6100':4,'6500':7, '1000':1284.50, '1010':5300.00, '1100':42.00, '2000':-318.20, '2100':-12500.00, '3000':-8000.00, '3010':4200.00, '3020':-50.00}
 };
 const SETUP_STEPS=[
   {n:1,name:'Welcome',skippable:false},
@@ -819,12 +819,15 @@ function mgmtRow(prefix, item, i){
   const sysTag = item.system ? '<span class="pill system">system</span>' : '';
   const lnkBadge = item.line ? `<span class="badge">${esc(lineShort(item.line))}</span>` : '<span class="muted">—</span>';
   const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '<td class="muted">—</td>';
-  const txnCount = state.txnCounts[item.code] || 0;
+  const isFlow = prefix==='expenses' || prefix==='income';
+  const balanceCell = isFlow
+    ? '<td class="right nowrap muted">—</td>'
+    : (() => { const b = state.txnCounts[item.code]; return `<td class="right nowrap">${b==null?'<span class="muted">—</span>':(b<0?'−':'') + '$' + Math.abs(b).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td>`; })();
   return `<tr${item.system?' class="review-later"':''}>
     <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
     ${numCell}
     <td class="linecol">${prefix==='other' ? `<span class="pill">${esc(item.type)}</span>` : lnkBadge}</td>
-    <td class="right nowrap">${txnCount}</td>
+    ${balanceCell}
     <td class="row-actions">
       <button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
       <button class="icon-btn" title="Disable" onclick="window.__openModal('Disable category','Hide this category from pickers. Reversible.<p><em>${esc(item.name)}</em> will not appear in pickers but transactions remain.</p>',[{\"Cancel\":\"closeModal()\"},{\"Disable\":\"closeModal()\"}])">⊘</button>
@@ -844,14 +847,20 @@ function mgmtUnifiedRow(prefix, item, i){
   const taxLineCell = prefix==='other'
     ? '<span class="muted">—</span>'
     : (item.line ? `<span class="badge">${esc(lineShort(item.line))}</span> <span class="muted small">— ${esc(lineLabel(item.line).split(' — ')[1] || '')}</span>` : '<span class="muted">—</span>');
-  const txnCount = state.txnCounts[item.code] || 0;
+  /* Round 9: replace Transactions column with Balance. Flow-based accounts (Income / Expense) show
+     — because they accumulate over time, not hold a balance; Asset / Liability / Equity show the
+     current balance (formatted with thousands separator and sign-aware minus). */
+  const isFlow = prefix==='expenses' || prefix==='income';
+  const balanceCell = isFlow
+    ? '<td class="right nowrap muted">—</td>'
+    : (() => { const b = state.txnCounts[item.code]; return `<td class="right nowrap">${b==null?'<span class="muted">—</span>':(b<0?'−':'') + '$' + Math.abs(b).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td>`; })();
   const rowCls = `${item.system?'review-later ':''}${item.is_hidden?'is-hidden':''}`.trim();
   return `<tr class="${rowCls}">
     <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
     ${numCell}
     ${typeCell}
     <td class="linecol">${taxLineCell}</td>
-    <td class="right nowrap">${txnCount}</td>
+    ${balanceCell}
     <td class="row-actions" style="white-space:nowrap">
       <button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
       <button class="icon-btn" title="${item.is_hidden?'Show':'Hide'}" onclick="window.__toggleHide('${prefix}',${i})">${item.is_hidden?'\u{1F441}':'⊘'}</button>
@@ -908,7 +917,7 @@ function renderMgmt(){
     ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
     <th>Type</th>
     <th>Tax Line Item</th>
-    <th class="right">Transactions</th>
+    <th class="right">Balance</th>
     <th></th>`;
 
   const html = `
@@ -973,7 +982,7 @@ window.__renderMgmtTable = ()=>{
     ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
     <th>Type</th>
     <th>Tax Line Item</th>
-    <th class="right">Transactions</th>
+    <th class="right">Balance</th>
     <th></th>`;
   const thead = tableArea.querySelector('thead tr');
   if(thead) thead.innerHTML = headers;
