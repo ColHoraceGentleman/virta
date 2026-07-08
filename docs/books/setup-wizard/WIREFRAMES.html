@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virta Books — Setup &amp; Categories Wireframes</title>
+<style>
+  :root {
+    --bg:#f7f7f5;--panel:#fff;--ink:#1f2937;--ink-soft:#4b5563;--muted:#6b7280;
+    --line:#e5e7eb;--line-strong:#cbd5e1;--accent:#2f7d4f;--accent-soft:#d8efe2;
+    --warn:#b45309;--warn-soft:#fdecd2;--danger:#b91c1c;--danger-soft:#fde2e2;
+    --info:#1d4ed8;--info-soft:#e0e9ff;--badge:#fef3c7;--badge-ink:#92400e;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  a{color:var(--info);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  .sidebar{background:#111827;color:#d1d5db;padding:18px 12px;border-right:1px solid #0b1220}
+  .brand{display:flex;align-items:center;gap:8px;color:#fff;font-weight:600;margin-bottom:18px}
+  .brand .logo{width:26px;height:26px;border-radius:7px;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{color:#d1d5db;padding:7px 10px;border-radius:7px;display:flex;align-items:center;gap:8px;font-size:13.5px}
+  .nav a:hover{background:#1f2937;text-decoration:none}
+  .nav a.active{background:#1f2937;color:#fff}
+  .nav .sub{padding-left:26px;font-size:12.5px;color:#9ca3af;display:flex;justify-content:space-between}
+  .nav .badge{background:var(--badge);color:var(--badge-ink);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:600}
+  .nav .section{color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin:14px 8px 4px}
+  main{padding:28px 36px}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+  .topbar h1{font-size:18px;margin:0;font-weight:600}
+  .crumbs{color:var(--muted);font-size:12.5px}
+  .wizard{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);max-width:920px;margin:0 auto;overflow:hidden}
+  .wizard header{padding:16px 22px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fafafa,#fff)}
+  .wizard header .ttl{font-weight:600;font-size:15px}
+  .wizard header .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .progress{display:flex;align-items:center;gap:6px;margin-top:12px}
+  .progress .dot{width:10px;height:10px;border-radius:50%;background:var(--line-strong)}
+  .progress .dot.done{background:var(--accent)}
+  .progress .dot.current{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .progress .bar{flex:1;height:3px;border-radius:99px;background:var(--line)}
+  .progress .bar.fill{background:var(--accent)}
+  .step-body{padding:22px;min-height:320px}
+  .step-cta{display:flex;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid var(--line);background:#fafafa}
+  .step-cta .right{display:flex;gap:8px}
+  button,.btn{font:inherit;cursor:pointer;border-radius:8px;padding:7px 14px;border:1px solid var(--line-strong);background:#fff;color:var(--ink)}
+  button:hover,.btn:hover{background:#f3f4f6}
+  button.primary,.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover,.btn.primary:hover{background:#27643f}
+  button.ghost{border-color:transparent;background:transparent}
+  button.ghost:hover{background:#f3f4f6}
+  button[disabled]{opacity:.55;cursor:not-allowed}
+  label{display:block;font-size:12.5px;color:var(--ink-soft);margin:12px 0 4px}
+  label .req{color:var(--danger)}
+  input[type="text"],input[type="date"],input[type="email"],textarea,select{width:100%;max-width:520px;padding:8px 10px;border:1px solid var(--line-strong);border-radius:7px;background:#fff;font:inherit;color:var(--ink)}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+  .field-row{display:flex;gap:12px;flex-wrap:wrap}
+  .field-row > div{flex:1;min-width:180px}
+  .help{font-size:12px;color:var(--muted);margin-top:4px}
+  .softwarn{background:var(--warn-soft);color:var(--warn);border-radius:7px;padding:10px 12px;font-size:13px;margin:8px 0 4px}
+  .infobox{background:var(--info-soft);color:var(--info);border-radius:7px;padding:10px 12px;font-size:13px;margin:8px 0 4px}
+  .radios{display:flex;gap:12px;flex-wrap:wrap}
+  .radio-card{flex:1;min-width:220px;border:1px solid var(--line-strong);border-radius:9px;padding:12px 14px;cursor:pointer;background:#fff}
+  .radio-card.selected{border-color:var(--accent);background:var(--accent-soft)}
+  .radio-card.disabled{opacity:.55;cursor:not-allowed;background:#f3f4f6}
+  .radio-card h4{margin:0 0 4px;font-size:14px}
+  .radio-card p{margin:0;color:var(--ink-soft);font-size:12.5px}
+  .radio-card .pill{display:inline-block;font-size:11px;font-weight:600;background:#e5e7eb;color:#374151;padding:1px 7px;border-radius:99px;margin-top:6px}
+  .radio-card.disabled .pill{background:#fde68a;color:#92400e}
+  .cat-table{width:100%;border-collapse:separate;border-spacing:0}
+  .cat-table th,.cat-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
+  .cat-table th{color:var(--ink-soft);font-weight:600;background:#fafafa}
+  .cat-table tr:hover td{background:#fafafa}
+  .cat-table .name input{width:220px;max-width:100%;padding:4px 6px}
+  .cat-table .desc{color:var(--muted)}
+  .cat-table .linecol{white-space:nowrap}
+  .linecol .badge{background:#eef2ff;color:#3730a3;border-radius:99px;padding:1px 7px;font-size:11px;font-weight:600}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .tabs button{border:0;border-bottom:2px solid transparent;background:transparent;padding:8px 14px;color:var(--ink-soft);font-weight:500}
+  .tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+  tr.review-later td{background:#fffaf2}
+  tr.review-later td:first-child::before{content:"📌 "}
+  .settings{max-width:720px}
+  .settings .row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+  .settings h3{margin:18px 0 8px}
+  .switch{width:36px;height:20px;background:var(--line-strong);border-radius:99px;position:relative;cursor:pointer;transition:background .15s}
+  .switch::after{content:"";width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform .15s}
+  .switch.on{background:var(--accent)}
+  .switch.on::after{transform:translateX(16px)}
+  .modal-back{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-back.open{display:flex}
+  .modal{background:#fff;border-radius:10px;width:540px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.25);overflow:hidden}
+  .modal header{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:600}
+  .modal .body{padding:16px 18px}
+  .modal footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#fafafa}
+  .review-summary{display:grid;grid-template-columns:200px 1fr;gap:6px 16px}
+  .review-summary dt{color:var(--muted);font-size:12.5px}
+  .review-summary dd{margin:0;font-size:13.5px}
+  .review-summary dd.empty{color:var(--muted);font-style:italic}
+  .row-actions{display:flex;gap:4px}
+  .icon-btn{background:transparent;border:0;padding:4px 6px;border-radius:6px;color:var(--ink-soft);cursor:pointer}
+  .icon-btn:hover{background:#f3f4f6}
+  .kicker{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;font-weight:600;background:#e5e7eb;color:#374151;padding:1px 7px;border-radius:99px}
+  .pill.system{background:var(--info-soft);color:var(--info)}
+  .pill.warn{background:var(--warn-soft);color:var(--warn)}
+  .empty-state{text-align:center;padding:36px 12px;color:var(--muted)}
+  .hidden{display:none}
+  .grow{flex:1}
+  .right{text-align:right}
+  .muted{color:var(--muted)}
+  .small{font-size:12.5px}
+  .nowrap{white-space:nowrap}
+  .crumb{padding:7px 12px;background:#f3f4f6;border-radius:6px;display:inline-block;margin-right:6px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">⚙️</span> Virta Books</div>
+    <nav class="nav" id="sidebar">
+      <a href="#" data-screen="dashboard">🏠 Dashboard</a>
+      <a href="#" data-screen="invoices">🧾 Invoices</a>
+      <a href="#" data-screen="transactions">💸 Transactions</a>
+      <div class="section">Categories</div>
+      <a href="#" data-screen="income" class="sub"><span>• Income (4)</span></a>
+      <a href="#" data-screen="expenses" class="sub"><span>• Expenses (18)</span><span class="badge" id="reviewBadge" hidden>Review Later · 3</span></a>
+      <a href="#" data-screen="other" class="sub"><span>• Other (8)</span></a>
+      <div class="section">Setup</div>
+      <a href="#" data-screen="setup">🚀 Run setup wizard</a>
+      <a href="#" data-screen="settings" class="active">⚙️ Settings</a>
+    </nav>
+  </aside>
+  <main id="root"></main>
+</div>
+<div class="modal-back" id="modalBack">
+  <div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+</div>
+<script>
+/* Virta Books — Setup & Categories wireframe state, data, and screens. */
+const IRS_EXPENSE_LINES = [
+  {id:'line-8',label:'Line 8',desc:'Advertising'},
+  {id:'line-9',label:'Line 9',desc:'Car and truck expenses'},
+  {id:'line-10',label:'Line 10',desc:'Commissions and fees'},
+  {id:'line-11',label:'Line 11',desc:'Contract labor'},
+  {id:'line-12',label:'Line 12',desc:'Depletion'},
+  {id:'line-13',label:'Line 13',desc:'Depreciation'},
+  {id:'line-14',label:'Line 14',desc:'Insurance'},
+  {id:'line-15a',label:'Line 15a',desc:'Interest — mortgage'},
+  {id:'line-15b',label:'Line 15b',desc:'Interest — other'},
+  {id:'line-16a',label:'Line 16a',desc:'Legal and professional services'},
+  {id:'line-16b',label:'Line 16b',desc:'Accounting'},
+  {id:'line-17',label:'Line 17',desc:'Office expense'},
+  {id:'line-18',label:'Line 18',desc:'Pension and profit-sharing'},
+  {id:'line-19',label:'Line 19',desc:'Rent or lease'},
+  {id:'line-20a',label:'Line 20a',desc:'Repairs and maintenance'},
+  {id:'line-20b',label:'Line 20b',desc:'Supplies'},
+  {id:'line-21',label:'Line 21',desc:'Taxes and licenses'},
+  {id:'line-22',label:'Line 24a',desc:'Travel'},
+  {id:'line-23',label:'Line 24b',desc:'Meals (50% deductible)'},
+  {id:'line-24',label:'Line 25a',desc:'Utilities'},
+  {id:'line-25b',label:'Line 25b',desc:'Telephone'},
+  {id:'line-26',label:'Line 26',desc:'Wages'},
+  {id:'line-27a',label:'Line 27a',desc:'Other expenses — pick for custom categories'}
+];
+const IRS_INCOME_LINES = [
+  {id:'part-i-1',label:'Part I, Line 1',desc:'Gross receipts or sales'},
+  {id:'part-i-7',label:'Part I, Line 7',desc:'Other income'}
+];
+const DEFAULT_EXPENSE = [
+  {code:'6000',name:'Accounting',line:'line-16b'},
+  {code:'6010',name:'Advertising',line:'line-8'},
+  {code:'6020',name:'Car & Truck',line:'line-9'},
+  {code:'6030',name:'Commissions',line:'line-10'},
+  {code:'6040',name:'Contract Labor',line:'line-11'},
+  {code:'6050',name:'Depletion',line:'line-12'},
+  {code:'6060',name:'Depreciation',line:'line-13'},
+  {code:'6070',name:'Insurance',line:'line-14'},
+  {code:'6080',name:'Interest',line:'line-15b'},
+  {code:'6090',name:'Legal & Professional',line:'line-16a'},
+  {code:'6100',name:'Meals',line:'line-23'},
+  {code:'6110',name:'Mortgage Interest',line:'line-15a'},
+  {code:'6120',name:'Office Expense',line:'line-17'},
+  {code:'6130',name:'Phone',line:'line-25b'},
+  {code:'6140',name:'Rent',line:'line-19'},
+  {code:'6150',name:'Repairs & Maintenance',line:'line-20a'},
+  {code:'6160',name:'Retirement',line:'line-18'},
+  {code:'6170',name:'Supplies',line:'line-20b'},
+  {code:'6180',name:'Taxes & Licenses',line:'line-21'},
+  {code:'6190',name:'Travel',line:'line-22'},
+  {code:'6200',name:'Utilities',line:'line-24'},
+  {code:'6210',name:'Wages',line:'line-26'},
+  {code:'6999',name:'Review Later',line:null,system:true}
+];
+const DEFAULT_INCOME = [
+  {code:'4000',name:'Other Income',line:'part-i-1'},
+  {code:'4010',name:'Refunds & Returns',line:'part-i-7'},
+  {code:'4020',name:'Sales',line:'part-i-1'}
+];
+const DEFAULT_OTHER = [
+  {code:'1010',name:'Business Checking',type:'Asset',group:'Cash & bank'},
+  {code:'1020',name:'Business Savings',type:'Asset',group:'Cash & bank'},
+  {code:'1100',name:'Cash on Hand',type:'Asset',group:'Cash & bank'},
+  {code:'2000',name:'Business Credit Card',type:'Liability',group:'Credit & loans'},
+  {code:'2100',name:'Loans Payable',type:'Liability',group:'Credit & loans'},
+  {code:'3000',name:'Owner Contributions',type:'Equity',group:'Equity'},
+  {code:'3010',name:'Owner Draws',type:'Equity',group:'Equity'},
+  {code:'3020',name:"Owner's Equity",type:'Equity',group:'Equity'}
+];
+const state = {
+  setupStep:1,
+  setup:{proprietor:'',business_name:'',trade_name:'',description:'',naics:'',addr1:'',addr2:'',city:'',state:'',zip:'',ein:'',accounting_method:'cash',fy_month:1,started_on:''},
+  catsStep:1,
+  expenses:DEFAULT_EXPENSE.map(e=>({...e,on:true})),
+  income:DEFAULT_INCOME.map(e=>({...e,on:true})),
+  other:DEFAULT_OTHER.map(e=>({...e,on:true})),
+  showNumbers:true,
+  activeTab:'expenses',
+  reviewLaterTxnCount:3,
+  txnCounts:{'6000':12,'6100':4,'6500':7}
+};
+const SETUP_STEPS=[
+  {n:1,name:'Welcome',skippable:false},
+  {n:2,name:'Basic business info',skippable:true},
+  {n:3,name:'Contact',skippable:true},
+  {n:4,name:'Accounting method',skippable:true},
+  {n:5,name:'Timeline',skippable:true},
+  {n:6,name:'Review',skippable:false}
+];
+const CATS_STEPS=[
+  {n:1,name:'Welcome',skippable:false},
+  {n:2,name:'Expense categories',skippable:true},
+  {n:3,name:'Income categories',skippable:true},
+  {n:4,name:'Other accounts',skippable:true},
+  {n:5,name:'Review Later',skippable:false},
+  {n:6,name:'Final review',skippable:false}
+];
+const $=s=>document.querySelector(s);
+const esc=s=>(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function lineLabel(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?`${m.label} — ${m.desc}`:'—';}
+function lineShort(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?m.label:(id?id:'—');}
+function refreshBadge(){const b=$('#reviewBadge');if(state.reviewLaterTxnCount>0){b.hidden=false;b.textContent=`Review Later · ${state.reviewLaterTxnCount}`;}else b.hidden=true;}
+function progressDots(steps,cur){return steps.map(s=>{const cls=s.n<cur?'done':(s.n===cur?'current':'');return `<span class="dot ${cls}"></span>${s.n<steps.length?`<span class="bar ${s.n<cur?'fill':''}"></span>`:''}`;}).join('');}
+function topbar(title,crumbs){return `<div class="topbar"><div><div class="crumbs">${crumbs.map(c=>`<span class="crumb">${esc(c)}</span>`).join(' ')}</div><h1>${esc(title)}</h1></div><div class="right small muted">Wireframe · click any step to advance</div></div>`;}
+
+/* ---- SETUP WIZARD ---- */
+function renderSetup(){
+  const s=state.setupStep; const st=SETUP_STEPS[s-1];
+  let body='';
+  if(s===1){
+    body=`<div class="step-body">
+      <h2 style="margin-top:0">Let's set up your books.</h2>
+      <p class="infobox">We'll ask for the same basic info that's on the Schedule C of your IRS Form 1040 — the tax form sole proprietors file. This makes year-end tax filing much easier.</p>
+      <p>Most people finish in under 5 minutes. You can change anything later.</p>
+      <ul>
+        <li>Pick your accounting method (cash recommended for sole proprietors)</li>
+        <li>Fill in your categories — pre-filled from Schedule C, customize anytime</li>
+      </ul>
+      <button class="primary" onclick="state.setupStep=2;render()">Get started →</button>
+      <p class="help" style="margin-top:10px">Up next: set up your categories.</p>
+    </div>
+    <div class="step-cta"><div></div><div class="right"></div></div>`;
+  } else if(s===2){
+    body=`<div class="step-body">
+      <div class="field-row">
+        <div>
+          <div class="kicker" style="margin-bottom:8px">About you</div>
+          <label>Your legal name <span class="help" style="margin:0"> (the business owner)</span></label>
+          <input type="text" value="${esc(state.setup.proprietor)}" placeholder="Chantelle Bailey" oninput="state.setup.proprietor=this.value">
+          <p class="help">This is you — the proprietor. Used in invoice headers (Schedule C, top of form).</p>
+          <label>What does your business do?</label>
+          <textarea maxlength="280" placeholder="Schedule C field A. Max 280 chars." oninput="state.setup.description=this.value">${esc(state.setup.description)}</textarea>
+        </div>
+        <div>
+          <div class="kicker" style="margin-bottom:8px">About your business</div>
+          <label>Business name</label>
+          <input type="text" value="${esc(state.setup.business_name)}" placeholder="Chantelle Bailey Design" oninput="state.setup.business_name=this.value">
+          <label>Trade name <span class="muted small">(optional)</span></label>
+          <input type="text" value="${esc(state.setup.trade_name)}" placeholder="Distinct from business name" oninput="state.setup.trade_name=this.value">
+          <label>Industry code (NAICS)</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" value="${esc(state.setup.naics)}" placeholder="Click ‘Look up’ to search by keyword" readonly style="background:#fafafa">
+            <button onclick="window.__openNaics()">Look up NAICS →</button>
+          </div>
+          <p class="help">From Schedule C field B. Optional — don't know it? Skip and add later.</p>
+          <label>EIN <span class="muted small">(optional)</span></label>
+          <input type="text" value="${esc(state.setup.ein)}" placeholder="00-0000000" oninput="state.setup.ein=this.value">
+          <p class="help">Many sole proprietors don't have one. Skipping leaves it blank.</p>
+        </div>
+      </div>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.setupStep=1;render()">Back</button>
+      <div class="right">
+        <button onclick="state.setupStep=3;render()">Skip</button>
+        <button class="primary" onclick="state.setupStep=3;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===3){
+    body=`<div class="step-body">
+      <div class="field-row">
+        <div><label>Street address</label><input type="text" value="${esc(state.setup.addr1)}" oninput="state.setup.addr1=this.value"></div>
+        <div><label>Street address 2</label><input type="text" value="${esc(state.setup.addr2)}" oninput="state.setup.addr2=this.value"></div>
+      </div>
+      <div class="field-row">
+        <div><label>City</label><input type="text" value="${esc(state.setup.city)}" oninput="state.setup.city=this.value"></div>
+        <div><label>State</label>
+          <select onchange="state.setup.state=this.value">
+            <option value="">—</option>
+            ${['CO','UT','WY','NM','AZ','CA','TX','NY','FL','IL'].map(x=>`<option ${state.setup.state===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+        </div>
+        <div><label>ZIP</label><input type="text" value="${esc(state.setup.zip)}" oninput="state.setup.zip=this.value"></div>
+      </div>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.setupStep=2;render()">Back</button>
+      <div class="right">
+        <button onclick="state.setupStep=4;render()">Skip</button>
+        <button class="primary" onclick="state.setupStep=4;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===4){
+    body=`<div class="step-body">
+      <p>Most sole proprietorships use cash accounting — recording money when it actually moves. You can change this later in Settings, but it affects how every transaction is recorded.</p>
+      <div class="radios" style="margin-top:14px">
+        <div class="radio-card selected" onclick="state.setup.accounting_method='cash';render()">
+          <h4>Cash</h4>
+          <p>Record money when it actually moves. The default for sole proprietors.</p>
+          <span class="pill">Selected</span>
+        </div>
+        <div class="radio-card disabled" title="Available in a future version">
+          <h4>Accrual</h4>
+          <p>Record income when earned and expenses when incurred, regardless of cash flow.</p>
+          <span class="pill">Available in a future version</span>
+        </div>
+      </div>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.setupStep=3;render()">Back</button>
+      <div class="right">
+        <button onclick="state.setup.accounting_method='cash';state.setupStep=5;render()">Skip (use Cash)</button>
+        <button class="primary" onclick="state.setupStep=5;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===5){
+    body=`<div class="step-body">
+      <label>Fiscal year starts</label>
+      <select onchange="state.setup.fy_month=Number(this.value);render()">
+        ${['January','February','March','April','May','June','July','August','September','October','November','December'].map((m,i)=>`<option value="${i+1}" ${state.setup.fy_month===i+1?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <p class="help">Most small businesses use the calendar year (Jan 1 – Dec 31). If you track your finances on a different cycle, change it here.</p>
+      <label>When did your business start?</label>
+      <input type="date" value="${esc(state.setup.started_on)}" oninput="state.setup.started_on=this.value">
+      <p class="help">Schedule C field J. Optional.</p>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.setupStep=4;render()">Back</button>
+      <div class="right">
+        <button onclick="state.setupStep=6;render()">Skip</button>
+        <button class="primary" onclick="state.setupStep=6;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===6){
+    const f=(v)=>v?esc(v):'<span class="muted small"><em>— (skipped)</em></span>';
+    const editBtn=(field)=>`<button class="icon-btn" title="Edit" onclick="window.__reviewEdit('${field}')">✎</button>`;
+    const row=(k,v,field)=>`<dt>${esc(k)}</dt><dd style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="flex:1">${v}</span>${editBtn(field)}</dd>`;
+    const editing=state.__reviewEditing;
+    const editPane=editing?`
+      <div class="infobox" style="margin:14px 0">
+        <strong>Editing ${esc(editing.label)}</strong>
+        <div style="margin-top:8px">
+          ${editing.field==='address'?`
+            <input type="text" id="rev-addr1" value="${esc(state.setup.addr1)}" placeholder="Street address" style="margin-bottom:4px">
+            <input type="text" id="rev-addr2" value="${esc(state.setup.addr2)}" placeholder="Street address 2" style="margin-bottom:4px">
+            <input type="text" id="rev-city" value="${esc(state.setup.city)}" placeholder="City" style="margin-bottom:4px">
+            <input type="text" id="rev-state" value="${esc(state.setup.state)}" placeholder="State" style="margin-bottom:4px;width:60px;display:inline-block">
+            <input type="text" id="rev-zip" value="${esc(state.setup.zip)}" placeholder="ZIP" style="margin-bottom:4px;width:90px;display:inline-block">
+          `:editing.field==='naics'?`
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="text" id="rev-naics" value="${esc(state.setup.naics)}" readonly style="background:#fafafa">
+              <button onclick="window.__openNaics()">Look up NAICS →</button>
+            </div>
+          `:editing.field==='fy_month'?`
+            <select id="rev-fy">
+              ${['January','February','March','April','May','June','July','August','September','October','November','December'].map((m,i)=>`<option value="${i+1}" ${state.setup.fy_month===i+1?'selected':''}>${m}</option>`).join('')}
+            </select>
+          `:editing.field==='started_on'?`
+            <input type="date" id="rev-started" value="${esc(state.setup.started_on)}">
+          `:editing.field==='accounting_method'?`
+            <div>Cash <span class="pill system">v1 default</span> — Accrual coming in a future version.</div>
+          `:`
+            <input type="text" id="rev-${editing.field}" value="${esc(state.setup[editing.field]||'')}">
+          `}
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end">
+          <button onclick="window.__reviewEdit(null)">Cancel</button>
+          <button class="primary" onclick="window.__reviewSave('${editing.field}')">Save</button>
+        </div>
+      </div>`:'';
+    body=`<div class="step-body">
+      <p>Review what you entered. Click any <strong>✎</strong> to edit that field in place. Anything skipped can be filled in later from Settings.</p>
+      <dl class="review-summary">
+        ${row('Your legal name', f(state.setup.proprietor), 'proprietor')}
+        ${row('What you do', f(state.setup.description), 'description')}
+        ${row('Business name', f(state.setup.business_name), 'business_name')}
+        ${row('Trade name', f(state.setup.trade_name), 'trade_name')}
+        ${row('NAICS', f(state.setup.naics), 'naics')}
+        ${row('EIN', f(state.setup.ein), 'ein')}
+        ${row('Address', f([state.setup.addr1,state.setup.addr2,state.setup.city,state.setup.state,state.setup.zip].filter(Boolean).join(', ')), 'address')}
+        ${row('Accounting method', 'Cash <span class="pill system">v1 default</span>', 'accounting_method')}
+        ${row('Fiscal year starts', ['January','February','March','April','May','June','July','August','September','October','November','December'][state.setup.fy_month-1], 'fy_month')}
+        ${row('Business started on', f(state.setup.started_on), 'started_on')}
+        <dt>Entity type</dt><dd>Sole proprietor <span class="pill">v1 only</span></dd>
+      </dl>
+      ${editPane}
+    </div>
+    <div class="step-cta">
+      <button onclick="state.setupStep=5;render()">Back</button>
+      <div class="right">
+        <button class="primary" onclick="state.setupStep=1;state.catsStep=1;render()">Save &amp; continue to Categories →</button>
+      </div>
+    </div>`;
+  }
+  const shell=`<div class="wizard">
+    <header>
+      <div class="ttl">Company Setup Wizard</div>
+      <div class="sub">Step ${s} of 6 — ${st.name}${st.skippable?' · <span class="pill">Skippable</span>':''}</div>
+      <div class="progress">${progressDots(SETUP_STEPS,s)}</div>
+    </header>
+    ${body}
+  </div>`;
+  $('#root').innerHTML = topbar('Setup Wizard',['Books','Setup']) + shell;
+  refreshBadge();
+}
+
+/* ---- REVIEW EDIT (inline expand-in-place) ---- */
+const REVIEW_FIELDS={
+  proprietor:'Your legal name',
+  description:'What you do',
+  business_name:'Business name',
+  trade_name:'Trade name',
+  naics:'NAICS code',
+  ein:'EIN',
+  address:'Business address',
+  accounting_method:'Accounting method',
+  fy_month:'Fiscal year start',
+  started_on:'Business start date'
+};
+window.__reviewEdit = (field)=>{
+  if(!field){ state.__reviewEditing = null; render(); return; }
+  state.__reviewEditing = { field, label: REVIEW_FIELDS[field]||field };
+  render();
+};
+window.__reviewSave = (field)=>{
+  if(field==='address'){
+    state.setup.addr1 = $('#rev-addr1')?.value||'';
+    state.setup.addr2 = $('#rev-addr2')?.value||'';
+    state.setup.city = $('#rev-city')?.value||'';
+    state.setup.state = $('#rev-state')?.value||'';
+    state.setup.zip = $('#rev-zip')?.value||'';
+  } else if(field==='fy_month'){
+    state.setup.fy_month = Number($('#rev-fy')?.value||1);
+  } else {
+    const el = $(`#rev-${field}`);
+    if(el) state.setup[field] = el.value;
+  }
+  state.__reviewEditing = null;
+  render();
+};
+
+/* ---- NAICS LOOKUP MODAL (offline, search-by-keyword) ---- */
+const NAICS_MINI = [
+  {code:'111998',title:'All Other Miscellaneous Crop Farming'},
+  {code:'238990',title:'All Other Specialty Trade Contractors'},
+  {code:'315990',title:'Apparel Accessories and Other Apparel Manufacturing'},
+  {code:'314999',title:'All Other Miscellaneous Textile Product Mills'},
+  {code:'339999',title:'All Other Miscellaneous Manufacturing'},
+  {code:'541430',title:'Graphic Design Services'},
+  {code:'541490',title:'Other Specialized Design Services'},
+  {code:'541511',title:'Custom Computer Programming Services'},
+  {code:'541512',title:'Computer Systems Design Services'},
+  {code:'541611',title:'Administrative Management and General Management Consulting Services'},
+  {code:'541612',title:'Human Resources Consulting Services'},
+  {code:'541613',title:'Marketing Consulting Services'},
+  {code:'541618',title:'Other Management Consulting Services'},
+  {code:'541620',title:'Environmental Consulting Services'},
+  {code:'541690',title:'Other Scientific and Technical Consulting Services'},
+  {code:'541715',title:'Research and Development in the Physical, Engineering, and Life Sciences (except Nanotechnology and Biotechnology)'},
+  {code:'541810',title:'Advertising Agencies'},
+  {code:'541820',title:'Public Relations Agencies'},
+  {code:'541830',title:'Media Buying Agencies'},
+  {code:'541840',title:'Media Representatives'},
+  {code:'541850',title:'Indoor and Outdoor Advertising'},
+  {code:'541860',title:'Direct Mail Advertising'},
+  {code:'541870',title:'Advertising Material Distribution Services'},
+  {code:'541890',title:'Other Services Related to Advertising'},
+  {code:'541910',title:'Marketing Research and Public Opinion Polling'},
+  {code:'541921',title:'Photography Studios, Portrait'},
+  {code:'541922',title:'Commercial Photography'},
+  {code:'541990',title:'All Other Professional, Scientific, and Technical Services'},
+  {code:'611710',title:'Educational Support Services'},
+  {code:'711510',title:'Independent Artists, Writers, and Performers'},
+  {code:'711120',title:'Theater Companies and Dinner Theaters'},
+  {code:'812112',title:'Beauty Salons'},
+  {code:'812199',title:'Other Personal Care Services'}
+];
+window.__openNaics = ()=>{
+  const m = $('#modal');
+  m.innerHTML = `
+    <header>Look up NAICS code</header>
+    <div class="body">
+      <input type="text" id="naics-q" placeholder="Type to search (e.g. quilting, photography, consulting)" autofocus oninput="window.__renderNaics(this.value)">
+      <p class="help">Search by keyword. Backed by an offline snapshot — works without network. (Full ~1,000 codes available in production.)</p>
+      <div id="naics-results" style="max-height:340px;overflow:auto;margin-top:8px"></div>
+    </div>
+    <footer><button onclick="closeModal()">Cancel</button></footer>
+  `;
+  $('#modalBack').classList.add('open');
+  window.__renderNaics('');
+};
+window.__renderNaics = (q)=>{
+  q = (q||'').toLowerCase().trim();
+  const list = q
+    ? NAICS_MINI.filter(r => r.title.toLowerCase().includes(q) || r.code.includes(q))
+    : NAICS_MINI.slice(0, 10);
+  $('#naics-results').innerHTML = list.length===0
+    ? '<div class="empty-state">No matches. Try a different keyword.</div>'
+    : list.map(r=>`<button class="naics-row" onclick="state.setup.naics='${r.code}';closeModal();render()" style="display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin:4px 0;background:#fff;cursor:pointer">
+        <strong>${r.code}</strong> — ${esc(r.title)}
+      </button>`).join('');
+};
+
+/* ---- CATEGORIES WIZARD ---- */
+function catRowInputs(prefix, list){
+  return list.map(item => {
+    const checked = item.on ? 'checked' : '';
+    const sysTag = item.system ? '<span class="pill system">system</span>' : '';
+    const lnkBadge = item.line ? `<span class="badge">${esc(lineShort(item.line))}</span>` : '<span class="muted">—</span>';
+    const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '<td class="muted">—</td>';
+    return `<tr${item.system?' class="review-later"':''}>
+      <td><input type="checkbox" ${checked} onchange="window.__toggleCat('${prefix}',${state.expenses.indexOf(item) >= 0 ? state.expenses.indexOf(item) : (prefix==='income' ? state.income.indexOf(item) : state.other.indexOf(item))})"></td>
+      ${numCell}
+      <td class="name">
+        ${item.system ? `<strong>${esc(item.name)}</strong> ${sysTag}` : `<input type="text" value="${esc(item.name)}" oninput="window.__renameCat('${prefix}',${state.expenses.indexOf(item) >= 0 ? state.expenses.indexOf(item) : (prefix==='income' ? state.income.indexOf(item) : state.other.indexOf(item))},this.value)">`}
+      </td>
+      <td class="linecol">${prefix==='other' ? `<span class="pill">${esc(item.type)}</span>` : lnkBadge}</td>
+      <td class="desc">${item.system ? 'System bucket for low-confidence categorization. No Schedule C mapping by design.' : (item.line ? esc(lineLabel(item.line).split(' — ')[1] || '') : '—')}</td>
+    </tr>`;
+  }).join('');
+}
+window.__toggleCat = (prefix,i)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; arr[i].on = !arr[i].on; render(); };
+window.__renameCat = (prefix,i,v)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; arr[i].name = v; };
+function renderCats(){
+  const s=state.catsStep; const st=CATS_STEPS[s-1];
+  let body='';
+  if(s===1){
+    body=`<div class="step-body">
+      <h2 style="margin-top:0">Set up your categories.</h2>
+      <p>Categories are the buckets your money gets sorted into. We've pre-seeded them based on Schedule C. You can rename, remove, or add any of them.</p>
+      <div class="infobox">You'll see a Schedule C line column on every list. Every category (except Review Later) maps to a single Schedule C line. Pick permissively — any custom name can be tied to any line.</div>
+      <button class="primary" onclick="state.catsStep=2;render()">Next →</button>
+    </div>
+    <div class="step-cta"><div></div><div class="right"></div></div>`;
+  } else if(s===2){
+    const tipAdd = `<tr><td colspan="5"><button onclick="window.__openAdd('expense')">+ Add custom expense category</button></td></tr>`;
+    body=`<div class="step-body">
+      <p>Pre-seeded expense categories from Schedule C Part II. Uncheck to skip. Click a row to rename. "Review Later" is added in step 5.</p>
+      <table class="cat-table">
+        <thead><tr><th></th><th>Code</th><th>Name</th><th>Schedule C line</th><th>Descriptor</th></tr></thead>
+        <tbody>${catRowInputs('expenses', state.expenses)}${tipAdd}</tbody>
+      </table>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.catsStep=1;render()">Back</button>
+      <div class="right">
+        <button onclick="state.catsStep=3;render()">Skip (use all defaults)</button>
+        <button class="primary" onclick="state.catsStep=3;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===3){
+    body=`<div class="step-body">
+      <p>Income accounts all map to Part I, Line 1 (or Part I, Line 7 for Other income). The IRS form is one line for income; the chart can be more granular.</p>
+      <table class="cat-table">
+        <thead><tr><th></th><th>Code</th><th>Name</th><th>Schedule C line</th><th>Descriptor</th></tr></thead>
+        <tbody>${catRowInputs('income', state.income)}<tr><td colspan="5"><button onclick="window.__openAdd('income')">+ Add custom income category</button></td></tr></tbody>
+      </table>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.catsStep=2;render()">Back</button>
+      <div class="right">
+        <button onclick="state.catsStep=4;render()">Skip (use all defaults)</button>
+        <button class="primary" onclick="state.catsStep=4;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===4){
+    const grouped = {
+      'Cash & bank': state.other.filter(o=>o.group==='Cash & bank'),
+      'Credit & loans': state.other.filter(o=>o.group==='Credit & loans'),
+      'Equity': state.other.filter(o=>o.group==='Equity')
+    };
+    const groupBlock = (label, items) => `
+      <div style="margin-top:14px">
+        <div class="kicker" style="margin:6px 0 4px">${label}</div>
+        <table class="cat-table">
+          <thead><tr><th></th><th>Code</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
+          <tbody>
+            ${catRowInputs('other', items)}
+            <tr><td colspan="5"><button onclick="window.__openAdd('other')">+ Add custom ${label.toLowerCase()} account</button></td></tr>
+          </tbody>
+        </table>
+      </div>`;
+    body=`<div class="step-body">
+      <p>Pre-seeded asset, liability, and equity accounts, grouped. These don't carry a Schedule C mapping (they appear on the balance sheet, not the income statement).</p>
+      ${groupBlock('Cash & bank', grouped['Cash & bank'])}
+      ${groupBlock('Credit & loans', grouped['Credit & loans'])}
+      ${groupBlock('Equity', grouped['Equity'])}
+      <p class="help muted" style="margin-top:14px">Default sort: alphabetical by name. Codes assigned in alphabetical order.</p>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.catsStep=3;render()">Back</button>
+      <div class="right">
+        <button onclick="state.catsStep=5;render()">Skip (use all defaults)</button>
+        <button class="primary" onclick="state.catsStep=5;render()">Save &amp; continue →</button>
+      </div>
+    </div>`;
+  } else if(s===5){
+    body=`<div class="step-body">
+      <div class="infobox"><strong>Review Later</strong> is auto-created as a system expense bucket. Anything the auto-categorizer isn't sure about goes here. You can move items to the right category any time.</div>
+      <table class="cat-table">
+        <tbody><tr class="review-later">
+          <td><input type="checkbox" checked disabled></td>
+          <td><code>6999</code></td>
+          <td><strong>Review Later</strong> <span class="pill system">system</span></td>
+          <td>—</td>
+          <td class="desc">No Schedule C mapping by design. Badge count in sidebar.</td>
+        </tr></tbody>
+      </table>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.catsStep=4;render()">Back</button>
+      <div class="right">
+        <button class="primary" onclick="state.catsStep=6;render()">Next →</button>
+      </div>
+    </div>`;
+  } else if(s===6){
+    const expOn=state.expenses.filter(e=>e.on).length;
+    const incOn=state.income.filter(e=>e.on).length;
+    const othOn=state.other.filter(e=>e.on).length;
+    body=`<div class="step-body">
+      <p>Quick review before you finish setup.</p>
+      <dl class="review-summary">
+        <dt>Income accounts</dt><dd>${incOn} <span class="muted small">(default: 3)</span></dd>
+        <dt>Expense accounts</dt><dd>${expOn} <span class="muted small">(incl. Review Later)</span></dd>
+        <dt>Other accounts</dt><dd>${othOn} <span class="muted small">(assets / liabilities / equity)</span></dd>
+        <dt>Account numbering</dt><dd>4-digit codes, 6xxx for expenses <span class="pill">${state.showNumbers?'On':'Off'}</span></dd>
+      </dl>
+    </div>
+    <div class="step-cta">
+      <button onclick="state.catsStep=5;render()">Back</button>
+      <div class="right">
+        <button class="primary" onclick="state.catsStep=1;render()">Finish setup → Dashboard</button>
+      </div>
+    </div>`;
+  }
+  const shell=`<div class="wizard">
+    <header>
+      <div class="ttl">Categories Wizard</div>
+      <div class="sub">Step ${s} of 6 — ${st.name}${st.skippable?' · <span class="pill">Skippable</span>':''}</div>
+      <div class="progress">${progressDots(CATS_STEPS,s)}</div>
+    </header>
+    ${body}
+  </div>`;
+  $('#root').innerHTML = topbar('Categories Wizard',['Books','Categories']) + shell;
+  refreshBadge();
+}
+
+/* ---- CATEGORIES MANAGEMENT ---- */
+function mgmtRow(prefix, item, i){
+  const sysTag = item.system ? '<span class="pill system">system</span>' : '';
+  const lnkBadge = item.line ? `<span class="badge">${esc(lineShort(item.line))}</span>` : '<span class="muted">—</span>';
+  const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '<td class="muted">—</td>';
+  const txnCount = state.txnCounts[item.code] || 0;
+  return `<tr${item.system?' class="review-later"':''}>
+    <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
+    ${numCell}
+    <td class="linecol">${prefix==='other' ? `<span class="pill">${esc(item.type)}</span>` : lnkBadge}</td>
+    <td class="right nowrap">${txnCount}</td>
+    <td class="row-actions">
+      <button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
+      <button class="icon-btn" title="Disable" onclick="window.__openModal('Disable category','Hide this category from pickers. Reversible.<p><em>${esc(item.name)}</em> will not appear in pickers but transactions remain.</p>',[{\"Cancel\":\"closeModal()\"},{\"Disable\":\"closeModal()\"}])">⊘</button>
+      <button class="icon-btn" title="Delete" onclick="window.__openDelete('${prefix}',${i})">🗑</button>
+      <button class="icon-btn" title="Merge" onclick="window.__openMerge('${prefix}',${i})">⇄</button>
+    </td>
+  </tr>`;
+}
+function renderMgmt(){
+  const tab = state.activeTab;
+  let body='', title='';
+  const tabs = [['expenses','Expenses','18'],['income','Income','4'],['other','Other','8']];
+  if(tab==='expenses'){
+    title='Categories — Expenses';
+    const sorted = [...state.expenses].sort((a,b)=>(a.system?-1:0)-(b.system?-1:0) || Number(a.code)-Number(b.code));
+    body = `<table class="cat-table">
+      <thead><tr><th>Name</th><th>Code</th><th>Schedule C line</th><th class="right">Transactions</th><th></th></tr></thead>
+      <tbody>${state.expenses.map((e,i)=>mgmtRow('expenses', e, i)).join('')}</tbody>
+    </table>`;
+  } else if(tab==='income'){
+    title='Categories — Income';
+    body = `<table class="cat-table">
+      <thead><tr><th>Name</th><th>Code</th><th>Schedule C line</th><th class="right">Transactions</th><th></th></tr></thead>
+      <tbody>${state.income.map((e,i)=>mgmtRow('income', e, i)).join('')}</tbody>
+    </table>`;
+  } else {
+    title='Categories — Other (Assets / Liabilities / Equity)';
+    body = `<table class="cat-table">
+      <thead><tr><th>Name</th><th>Code</th><th>Type</th><th class="right">Transactions</th><th></th></tr></thead>
+      <tbody>${state.other.map((e,i)=>mgmtRow('other', e, i)).join('')}</tbody>
+    </table>`;
+  }
+  const html = `<div>${tabs.map(([k,n,c])=>`<button class="${state.activeTab===k?'active':''}" onclick="state.activeTab='${k}';render()">${n} (${c})</button>`).join('')}</div>${body}<div style="margin-top:14px"><button onclick="window.__openAdd('${state.activeTab==='income'?'income':state.activeTab==='other'?'other':'expense'}')">+ Add custom category</button></div>`;
+  $('#root').innerHTML = topbar(title,['Books','Categories']) + `<div class="box" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:var(--shadow)">${html}</div>`;
+  refreshBadge();
+}
+
+/* ---- MODALS ---- */
+window.__openModal = (title, body, buttons) => {
+  const m = $('#modal');
+  m.innerHTML = `<header>${esc(title)}</header><div class="body">${body}</div><footer>${buttons.map((b,i)=>{const entries=Object.entries(b);return entries.map(([label,fn])=>`<button ${/primary/i.test(label)?'class="primary"':''} onclick="${fn}">${esc(label)}</button>`).join('')}).join('')}</footer>`;
+  $('#modalBack').classList.add('open');
+};
+window.closeModal = ()=>$('#modalBack').classList.remove('open');
+window.__openAdd = (kind)=>{
+  const lineOptions = kind==='income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
+  const opts = lineOptions.map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
+  window.__openModal('Add custom category', `
+    <label>Name <span class="req">*</span></label>
+    <input type="text" id="m-name" placeholder="Quilting Supplies">
+    <label>Schedule C line <span class="req">*</span></label>
+    <select id="m-line">${opts}</select>
+    <p class="help">Permissive — you can map any custom name to any line.</p>
+  `, [{Cancel:'closeModal()'}, {Add:`alert('Added custom category. (Demo.)');closeModal();`}]);
+};
+window.__openEdit = (prefix,i)=>{
+  const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
+  const item = arr[i];
+  const lineOptions = prefix==='income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
+  const opts = lineOptions.map(l=>`<option value="${l.id}" ${item.line===l.id?'selected':''}>${l.label} — ${l.desc}</option>`).join('');
+  window.__openModal('Edit category', `
+    <label>Name</label>
+    <input type="text" value="${esc(item.name)}">
+    <label>Code</label>
+    <input type="text" value="${esc(item.code)}">
+    <label>Schedule C line</label>
+    <select>${opts}</select>
+    <div class="softwarn">Changing the Schedule C line affects how this category's transactions appear on tax exports.</div>
+  `, [{Cancel:'closeModal()'}, {Save:`closeModal();`}]);
+};
+window.__openDelete = (prefix,i)=>{
+  const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
+  const item = arr[i];
+  const count = state.txnCounts[item.code] || 0;
+  if(count>0){
+    const others = arr.filter((x,k)=>k!==i).map(o=>`<option>${esc(o.name)}</option>`).join('');
+    window.__openModal('Delete category', `
+      <p><strong>${count} transaction${count===1?'':'s'}</strong> are categorized to <em>${esc(item.name)}</em>. Move them to another account first, then delete.</p>
+      <label>Move to</label>
+      <select>${others}</select>
+    `, [{Cancel:'closeModal()'}, {'Reassign & delete':`alert('Reassigned ${count} txns and removed category. (Demo.)');closeModal();`}]);
+  } else {
+    window.__openModal('Delete category', `<p>Delete <em>${esc(item.name)}</em>? It has no transactions.</p>`,
+      [{Cancel:'closeModal()'}, {Delete:`closeModal();`}]);
+  }
+};
+window.__openMerge = (prefix,i)=>{
+  const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
+  const item = arr[i];
+  const others = arr.filter((x,k)=>k!==i).map(o=>`<option>${esc(o.name)}</option>`).join('');
+  window.__openModal('Merge categories', `
+    <p>All transactions on <em>${esc(item.name)}</em> will be moved to the destination. Same account type required. This can't be undone.</p>
+    <label>Source</label>
+    <input type="text" value="${esc(item.name)}" disabled>
+    <label>Destination</label>
+    <select>${others}</select>
+  `, [{Cancel:'closeModal()'}, {Merge:`closeModal();`}]);
+};
+
+/* ---- DASHBOARD / SETTINGS / ROUTING ---- */
+function renderDashboard(){
+  $('#root').innerHTML = topbar('Dashboard',['Books']) + `<div class="box" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px">
+    <h2 style="margin-top:0">Welcome to Virta Books</h2>
+    <p>You're set up. Quick links:</p>
+    <ul>
+      <li><a href="#" onclick="state.screen='setup';render()">Run setup wizard →</a></li>
+      <li><a href="#" onclick="state.screen='mgmt';state.activeTab='expenses';render()">Categories — Expenses</a> <span class="pill warn">${state.reviewLaterTxnCount} on Review Later</span></li>
+      <li><a href="#" onclick="state.screen='settings';render()">Settings</a></li>
+    </ul>
+    <div class="infobox">Review Later badge in the sidebar shows outstanding auto-categorization items. Move them to the right category from the Categorize UI.</div>
+  </div>`;
+  refreshBadge();
+}
+function renderSettings(){
+  $('#root').innerHTML = topbar('Settings',['Books']) + `<div class="settings">
+    <h3>Categories</h3>
+    <div class="row"><span>Manage categories</span><button onclick="state.screen='mgmt';state.activeTab='expenses';render()">Open categories →</button></div>
+    <h3>Display</h3>
+    <div class="row"><span>Show account numbers</span><div class="switch ${state.showNumbers?'on':''}" onclick="state.showNumbers=!state.showNumbers;render()"></div></div>
+    <div class="row"><span>Review Later badge in sidebar</span><div class="switch on"></div></div>
+    <h3>Accounting</h3>
+    <div class="row"><span>Accounting method</span><span class="pill">Cash</span></div>
+    <div class="row"><span>Fiscal year start</span><span class="pill">January</span></div>
+    <div class="row"><span>Currency</span><span class="pill">USD</span></div>
+    <h3>Entity</h3>
+    <div class="row"><span>Business type</span><span class="pill">Sole proprietor</span></div>
+    <h3>Help</h3>
+    <div class="row"><span>Run setup wizard again</span><button onclick="state.setupStep=1;state.screen='setup';render()">Start over →</button></div>
+  </div>`;
+  refreshBadge();
+}
+
+/* ---- ROUTING ---- */
+state.screen = state.screen || 'settings';
+function render(){
+  const s = state.screen;
+  if(s==='setup') return renderSetup();
+  if(s==='cats') return renderCats();
+  if(s==='mgmt') return renderMgmt();
+  if(s==='dashboard') return renderDashboard();
+  if(s==='settings') return renderSettings();
+  renderSettings();
+}
+document.addEventListener('click', (e)=>{
+  const a = e.target.closest('a[data-screen]');
+  if(!a) return;
+  e.preventDefault();
+  const k = a.getAttribute('data-screen');
+  if(k==='income'){ state.screen='mgmt'; state.activeTab='income'; }
+  else if(k==='expenses'){ state.screen='mgmt'; state.activeTab='expenses'; }
+  else if(k==='other'){ state.screen='mgmt'; state.activeTab='other'; }
+  else { state.screen = k; }
+  render();
+});
+window.addEventListener('DOMContentLoaded', render);
+
+
+</script>
+</body>
+</html>
