@@ -254,12 +254,7 @@ function renderSetup(){
       <h2 style="margin-top:0">Let's set up your books.</h2>
       <p class="infobox">We'll ask for the same basic info that's on the Schedule C of your IRS Form 1040 — the tax form sole proprietors file. This makes year-end tax filing much easier.</p>
       <p>Most people finish in under 5 minutes. You can change anything later.</p>
-      <ul>
-        <li>Pick your accounting method (cash recommended for sole proprietors)</li>
-        <li>Fill in your categories — pre-filled from Schedule C, customize anytime</li>
-      </ul>
       <button class="primary" onclick="state.setupStep=2;render()">Get started →</button>
-      <p class="help" style="margin-top:10px">Up next: set up your categories.</p>
     </div>
     <div class="step-cta"><div></div><div class="right"></div></div>`;
   } else if(s===2){
@@ -267,11 +262,10 @@ function renderSetup(){
       <div class="field-row">
         <div>
           <div class="kicker" style="margin-bottom:8px">About you</div>
-          <label>Your legal name <span class="help" style="margin:0"> (the business owner)</span></label>
+          <label>Your name</label>
           <input type="text" value="${esc(state.setup.proprietor)}" placeholder="Chantelle Bailey" oninput="state.setup.proprietor=this.value">
-          <p class="help">This is you — the proprietor. Used in invoice headers (Schedule C, top of form).</p>
           <label>What does your business do?</label>
-          <textarea maxlength="280" placeholder="Schedule C field A. Max 280 chars." oninput="state.setup.description=this.value">${esc(state.setup.description)}</textarea>
+          <textarea maxlength="280" placeholder="One or two sentences about what you sell or do." oninput="state.setup.description=this.value">${esc(state.setup.description)}</textarea>
         </div>
         <div>
           <div class="kicker" style="margin-bottom:8px">About your business</div>
@@ -284,7 +278,7 @@ function renderSetup(){
             <input type="text" value="${esc(state.setup.naics)}" placeholder="Click ‘Look up’ to search by keyword" readonly style="background:#fafafa">
             <button onclick="window.__openNaics()">Look up NAICS →</button>
           </div>
-          <p class="help">From Schedule C field B. Optional — don't know it? Skip and add later.</p>
+          <p class="help">Optional — don't know it? Skip and add later.</p>
           <label>EIN <span class="muted small">(optional)</span></label>
           <input type="text" value="${esc(state.setup.ein)}" placeholder="00-0000000" oninput="state.setup.ein=this.value">
           <p class="help">Many sole proprietors don't have one. Skipping leaves it blank.</p>
@@ -354,7 +348,7 @@ function renderSetup(){
       <p class="help">Most small businesses use the calendar year (Jan 1 – Dec 31). If you track your finances on a different cycle, change it here.</p>
       <label>When did your business start?</label>
       <input type="date" value="${esc(state.setup.started_on)}" oninput="state.setup.started_on=this.value">
-      <p class="help">Schedule C field J. Optional.</p>
+      <p class="help">Optional.</p>
     </div>
     <div class="step-cta">
       <button onclick="state.setupStep=4;render()">Back</button>
@@ -366,7 +360,7 @@ function renderSetup(){
   } else if(s===6){
     const f=(v)=>v?esc(v):'<span class="muted small"><em>— (skipped)</em></span>';
     const editBtn=(field)=>`<button class="icon-btn" title="Edit" onclick="window.__reviewEdit('${field}')">✎</button>`;
-    const row=(k,v,field)=>`<dt>${esc(k)}</dt><dd style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="flex:1">${v}</span>${editBtn(field)}</dd>`;
+    const row=(k,v,field)=>`<dt>${esc(k)}</dt><dd><span style="display:inline-flex;align-items:center;gap:6px"><span>${v}</span>${editBtn(field)}</span></dd>`;
     const editing=state.__reviewEditing;
     const editPane=editing?`
       <div class="infobox" style="margin:14px 0">
@@ -390,7 +384,7 @@ function renderSetup(){
           `:editing.field==='started_on'?`
             <input type="date" id="rev-started" value="${esc(state.setup.started_on)}">
           `:editing.field==='accounting_method'?`
-            <div>Cash <span class="pill system">v1 default</span> — Accrual coming in a future version.</div>
+            <div>Cash <span class="pill">v1 default</span> — Accrual coming in a future version.</div>
           `:`
             <input type="text" id="rev-${editing.field}" value="${esc(state.setup[editing.field]||'')}">
           `}
@@ -403,14 +397,14 @@ function renderSetup(){
     body=`<div class="step-body">
       <p>Review what you entered. Click any <strong>✎</strong> to edit that field in place. Anything skipped can be filled in later from Settings.</p>
       <dl class="review-summary">
-        ${row('Your legal name', f(state.setup.proprietor), 'proprietor')}
+        ${row('Your name', f(state.setup.proprietor), 'proprietor')}
         ${row('What you do', f(state.setup.description), 'description')}
         ${row('Business name', f(state.setup.business_name), 'business_name')}
         ${row('Trade name', f(state.setup.trade_name), 'trade_name')}
         ${row('NAICS', f(state.setup.naics), 'naics')}
         ${row('EIN', f(state.setup.ein), 'ein')}
         ${row('Address', f([state.setup.addr1,state.setup.addr2,state.setup.city,state.setup.state,state.setup.zip].filter(Boolean).join(', ')), 'address')}
-        ${row('Accounting method', 'Cash <span class="pill system">v1 default</span>', 'accounting_method')}
+        ${row('Accounting method', 'Cash <span class="pill">v1 default</span>', 'accounting_method')}
         ${row('Fiscal year starts', ['January','February','March','April','May','June','July','August','September','October','November','December'][state.setup.fy_month-1], 'fy_month')}
         ${row('Business started on', f(state.setup.started_on), 'started_on')}
         <dt>Entity type</dt><dd>Sole proprietor <span class="pill">v1 only</span></dd>
@@ -420,7 +414,7 @@ function renderSetup(){
     <div class="step-cta">
       <button onclick="state.setupStep=5;render()">Back</button>
       <div class="right">
-        <button class="primary" onclick="state.setupStep=1;state.catsStep=1;render()">Save &amp; continue to Categories →</button>
+        <button class="primary" onclick="state.screen='cats';state.catsStep=1;render()">Save &amp; continue to Categories →</button>
       </div>
     </div>`;
   }
@@ -438,7 +432,7 @@ function renderSetup(){
 
 /* ---- REVIEW EDIT (inline expand-in-place) ---- */
 const REVIEW_FIELDS={
-  proprietor:'Your legal name',
+  proprietor:'Your name',
   description:'What you do',
   business_name:'Business name',
   trade_name:'Trade name',

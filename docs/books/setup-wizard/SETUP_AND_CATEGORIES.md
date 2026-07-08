@@ -179,14 +179,9 @@ Final step writes to `accounts`. Dashboard becomes available.
 
 Full-screen modal-style page. Headline: "Let's set up your books." Sub-headline explains Schedule C plainly: **"We'll ask for the same basic info that's on the Schedule C of your IRS Form 1040 — the tax form sole proprietors file. This makes year-end tax filing much easier."** Below: **"Most people finish in under 5 minutes. You can change anything later."**
 
-Preview bullets (softened — describe what the user will *do*, not implementation status):
-
-- Pick your accounting method
-- Fill in your categories (pre-filled from Schedule C — customize anytime)
-
-Footer line under the CTA: **"Up next: set up your categories"** so the user knows where the button takes them.
-
 Single CTA: "Get started."
+
+(No preview bullets and no "Up next" hint on this screen — keep it focused on the Schedule C explainer and the time/length reassurance. Future-screen previews belong only when they reduce ambiguity, not add it.)
 
 ### Step 2: Basic business info (merged)
 
@@ -196,8 +191,8 @@ This step replaces the old Steps 2 (Owner), 3 (Business identity), and 5 (Tax ID
 
 | Field | Type | Notes |
 |---|---|---|
-| Your legal name (the business owner) | text | Label clarifies "this is you — the proprietor." Used in invoice header. Schedule C top of form. |
-| What does your business do? | textarea | Schedule C field A. Max 280 chars. |
+| Your name | text | The legal name on your tax return. Used in invoice header. |
+| What does your business do? | textarea | Max 280 chars. |
 
 **About your business**
 
@@ -205,7 +200,7 @@ This step replaces the old Steps 2 (Owner), 3 (Business identity), and 5 (Tax ID
 |---|---|---|
 | Business name | text | Trade name. Default placeholder: "My Business Name" |
 | Trade name | text | Optional. Distinct from `business_name`. |
-| Industry code (NAICS) | NAICS picker | See §6A. Search-by-keyword modal backed by offline JSON. Schedule C field B. |
+| Industry code (NAICS) | NAICS picker | See §6A. Search-by-keyword modal backed by offline JSON. |
 | EIN | text | Optional. Format hint: "00-0000000". Skipping = blank. |
 
 Skip behavior: all fields blank.
@@ -235,7 +230,7 @@ Skip behavior: defaults to Cash.
 | Field | Type | Notes |
 |---|---|---|
 | Fiscal year starts | dropdown (month) | Default January. Helper text: "Most small businesses use the calendar year (Jan 1 – Dec 31). If you track your finances on a different cycle, change it here." |
-| When did your business start? | date | Schedule C field J. Optional. |
+| When did your business start? | date | Optional. |
 
 ### Step 6: Review & create
 
@@ -258,7 +253,7 @@ The Industry code (NAICS) field in step 2 is a search-and-select picker, not a p
 
 Backing data: a bundled offline JSON snapshot at `server/src/books/data/naics-2022.json` (Census Bureau 2022 NAICS release). Schema: `[{ code, title, sector, keywords: string[] }, ...]` for all ~1,000 6-digit codes. Total file size ~120KB gzipped, no network round-trip. Out of v1: live Census API or "I don't know — skip" bulk assign.
 
-"Why is this on a tax app?" — NAICS is on Schedule C field B. It's not validated at submit time, just stored. If the user doesn't know it, the field stays empty (already optional).
+"Why is this on a tax app?" — NAICS is a tax-form data point. It's not validated at submit time, just stored. If the user doesn't know it, the field stays empty (already optional).
 
 ---
 
