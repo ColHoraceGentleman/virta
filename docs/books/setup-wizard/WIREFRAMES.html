@@ -913,13 +913,16 @@ function renderMgmt(){
 
   const tableRows = filtered.map(r => mgmtUnifiedRow(r.prefix, r, r.i)).join('');
 
+  /* D? round 13: when Accounting Codes are on, shrink the Code column (~60px is plenty for 4-5 digits)
+     and let Category Name take a meaningful share of the remaining space. When Codes are off, the
+     Code column is absent entirely and the table rebalances. */
   const headers = `
-    ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
-    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
-    <th>Type</th>
+    ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')" style="width:60px">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
+    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')" style="${state.showNumbers?'width:30%':''}">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
+    <th style="width:120px">Type</th>
     <th>Tax Line Item</th>
-    <th class="right">Balance</th>
-    <th></th>`;
+    <th class="right" style="width:120px">Balance</th>
+    <th style="width:140px"></th>`;
 
   const html = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
@@ -978,13 +981,14 @@ window.__renderMgmtTable = ()=>{
   };
   filtered = [...filtered].sort((a,b)=> sysPinnedFirst(a,b) || by(a,b));
   const tableRows = filtered.map(r => mgmtUnifiedRow(r.prefix, r, r.i)).join('');
+  /* D? round 13: same width patterns as renderMgmt — see comment there. */
   const headers = `
-    ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
-    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
-    <th>Type</th>
+    ${state.showNumbers ? `<th class="sortable ${sk.key==='code'?'active':''}" onclick="window.__sortMgmtBy('code')" style="width:60px">Code <span class="arrow">${sk.key==='code'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>` : ''}
+    <th class="sortable ${sk.key==='name'?'active':''}" onclick="window.__sortMgmtBy('name')" style="${state.showNumbers?'width:30%':''}">Name <span class="arrow">${sk.key==='name'?(sk.dir==='asc'?'↑':'↓'):'↕'}</span></th>
+    <th style="width:120px">Type</th>
     <th>Tax Line Item</th>
-    <th class="right">Balance</th>
-    <th></th>`;
+    <th class="right" style="width:120px">Balance</th>
+    <th style="width:140px"></th>`;
   const thead = tableArea.querySelector('thead tr');
   if(thead) thead.innerHTML = headers;
   const tbody = window.document.querySelector('#mgmt-tbody');
