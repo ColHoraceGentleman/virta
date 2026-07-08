@@ -71,7 +71,11 @@
   .radio-card.disabled .pill{background:#fde68a;color:#92400e}
   .cat-table{width:100%;border-collapse:separate;border-spacing:0}
   .cat-table th,.cat-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle}
-  .cat-table th{color:var(--ink-soft);font-weight:600;background:#fafafa}
+  .cat-table th{color:var(--ink-soft);font-weight:600;background:#fafafa;position:sticky;top:0;z-index:1;user-select:none}
+  .cat-table th.sortable{cursor:pointer}
+  .cat-table th.sortable:hover{background:#f3f4f6}
+  .cat-table th .arrow{margin-left:4px;color:var(--muted);font-size:10px}
+  .cat-table th.active .arrow{color:var(--accent)}
   .cat-table tr:hover td{background:#fafafa}
   .cat-table .name input{width:220px;max-width:100%;padding:4px 6px}
   .cat-table .desc{color:var(--muted)}
@@ -99,9 +103,18 @@
   .review-summary dt{color:var(--muted);font-size:12.5px}
   .review-summary dd{margin:0;font-size:13.5px}
   .review-summary dd.empty{color:var(--muted);font-style:italic}
-  .row-actions{display:flex;gap:4px}
+  .row-actions{display:flex;gap:4px;justify-content:flex-end}
   .icon-btn{background:transparent;border:0;padding:4px 6px;border-radius:6px;color:var(--ink-soft);cursor:pointer}
   .icon-btn:hover{background:#f3f4f6}
+  .hide-btn,.delete-btn{font:inherit;cursor:pointer;border:1px solid var(--line-strong);background:#fff;color:var(--ink-soft);border-radius:6px;padding:4px 10px;font-size:12.5px}
+  .hide-btn:hover{background:#f3f4f6;color:var(--ink)}
+  .delete-btn{color:var(--danger);border-color:#fecaca}
+  .delete-btn:hover{background:#fde2e2}
+  .wiz-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap}
+  .wiz-toolbar .add-btn{font:inherit;cursor:pointer;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13.5px;font-weight:500}
+  .wiz-toolbar .add-btn:hover{background:#27643f}
+  .wiz-toolbar .accnum-toggle{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft)}
+  tr.is-hidden td{opacity:.45;text-decoration:line-through}
   .kicker{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
   .pill{display:inline-block;font-size:11px;font-weight:600;background:#e5e7eb;color:#374151;padding:1px 7px;border-radius:99px}
   .pill.system{background:var(--info-soft);color:var(--info)}
@@ -195,9 +208,9 @@ const DEFAULT_EXPENSE = [
   {code:'6999',name:'Review Later',line:null,system:true}
 ];
 const DEFAULT_INCOME = [
-  {code:'4000',name:'Other Income',line:'part-i-1'},
+  {code:'4000',name:'Sales',line:'part-i-1'},
   {code:'4010',name:'Refunds & Returns',line:'part-i-7'},
-  {code:'4020',name:'Sales',line:'part-i-1'}
+  {code:'4020',name:'Other Income',line:'part-i-1'}
 ];
 const DEFAULT_OTHER = [
   {code:'1010',name:'Business Checking',type:'Asset',group:'Cash & bank'},
@@ -213,10 +226,14 @@ const state = {
   setupStep:1,
   setup:{proprietor:'',business_name:'',trade_name:'',description:'',naics:'',addr1:'',addr2:'',city:'',state:'',zip:'',ein:'',accounting_method:'cash',fy_month:1,started_on:''},
   catsStep:1,
-  expenses:DEFAULT_EXPENSE.map(e=>({...e,on:true})),
-  income:DEFAULT_INCOME.map(e=>({...e,on:true})),
-  other:DEFAULT_OTHER.map(e=>({...e,on:true})),
-  showNumbers:true,
+  expenses:DEFAULT_EXPENSE.map(e=>({...e,is_hidden:false,is_deleted:false,note:''})),
+  income:DEFAULT_INCOME.map(e=>({...e,is_hidden:false,is_deleted:false,note:''})),
+  other:DEFAULT_OTHER.map(e=>({...e,is_hidden:false,is_deleted:false,note:''})),
+  /* per-table sort state; default = name asc */
+  sortExpenses:{key:'name',dir:'asc'},
+  sortIncome:{key:'none',dir:'asc'}, /* income has an intentional non-alphabetical default order (Sales, Refunds & Returns, Other Income); user can still click headers to sort */
+  sortOther:{key:'name',dir:'asc'},
+  showNumbers:false,
   activeTab:'expenses',
   reviewLaterTxnCount:3,
   txnCounts:{'6000':12,'6100':4,'6500':7}
@@ -263,14 +280,14 @@ function renderSetup(){
         <div>
           <div class="kicker" style="margin-bottom:8px">About you</div>
           <label>Your name</label>
-          <input type="text" value="${esc(state.setup.proprietor)}" placeholder="Chantelle Bailey" oninput="state.setup.proprietor=this.value">
+          <input type="text" value="${esc(state.setup.proprietor)}" placeholder="Your name" oninput="state.setup.proprietor=this.value">
           <label>What does your business do?</label>
           <textarea maxlength="280" placeholder="One or two sentences about what you sell or do." oninput="state.setup.description=this.value">${esc(state.setup.description)}</textarea>
         </div>
         <div>
           <div class="kicker" style="margin-bottom:8px">About your business</div>
           <label>Business name</label>
-          <input type="text" value="${esc(state.setup.business_name)}" placeholder="Chantelle Bailey Design" oninput="state.setup.business_name=this.value">
+          <input type="text" value="${esc(state.setup.business_name)}" placeholder="Your business name" oninput="state.setup.business_name=this.value">
           <label>Trade name <span class="muted small">(optional)</span></label>
           <input type="text" value="${esc(state.setup.trade_name)}" placeholder="Distinct from business name" oninput="state.setup.trade_name=this.value">
           <label>Industry code (NAICS)</label>
@@ -530,23 +547,64 @@ window.__renderNaics = (q)=>{
 /* ---- CATEGORIES WIZARD ---- */
 function catRowInputs(prefix, list){
   return list.map(item => {
-    const checked = item.on ? 'checked' : '';
     const sysTag = item.system ? '<span class="pill system">system</span>' : '';
     const lnkBadge = item.line ? `<span class="badge">${esc(lineShort(item.line))}</span>` : '<span class="muted">—</span>';
     const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '<td class="muted">—</td>';
-    return `<tr${item.system?' class="review-later"':''}>
-      <td><input type="checkbox" ${checked} onchange="window.__toggleCat('${prefix}',${state.expenses.indexOf(item) >= 0 ? state.expenses.indexOf(item) : (prefix==='income' ? state.income.indexOf(item) : state.other.indexOf(item))})"></td>
+    const i = state[prefix].indexOf(item);
+    const desc = prefix === 'other'
+      ? (item.note || '—')
+      : (item.system
+          ? 'System bucket for low-confidence categorization.'
+          : (item.line ? esc(lineLabel(item.line).split(' — ')[1] || '') : (item.note || '—')));
+    const hideBtn = item.system
+      ? '<span class="muted small">—</span>'
+      : (item.is_hidden
+          ? `<button class="hide-btn" onclick="window.__toggleHide('${prefix}',${i})">Show</button>`
+          : `<button class="hide-btn" onclick="window.__toggleHide('${prefix}',${i})">Hide</button>`);
+    const deleteBtn = item.system
+      ? '<span class="muted small">—</span>'
+      : `<button class="delete-btn" onclick="window.__toggleDelete('${prefix}',${i})">Delete</button>`;
+    const rowCls = `${item.system ? 'review-later ' : ''}${item.is_hidden ? 'is-hidden' : ''}`.trim();
+    return `<tr class="${rowCls}">
       ${numCell}
       <td class="name">
-        ${item.system ? `<strong>${esc(item.name)}</strong> ${sysTag}` : `<input type="text" value="${esc(item.name)}" oninput="window.__renameCat('${prefix}',${state.expenses.indexOf(item) >= 0 ? state.expenses.indexOf(item) : (prefix==='income' ? state.income.indexOf(item) : state.other.indexOf(item))},this.value)">`}
+        ${item.system ? `<strong>${esc(item.name)}</strong> ${sysTag}` : `<input type="text" value="${esc(item.name)}" oninput="window.__renameCat('${prefix}',${i},this.value)">`}
       </td>
       <td class="linecol">${prefix==='other' ? `<span class="pill">${esc(item.type)}</span>` : lnkBadge}</td>
-      <td class="desc">${item.system ? 'System bucket for low-confidence categorization. No Schedule C mapping by design.' : (item.line ? esc(lineLabel(item.line).split(' — ')[1] || '') : '—')}</td>
+      <td class="desc">${desc}</td>
+      <td class="row-actions">${hideBtn}</td>
+      <td class="row-actions">${deleteBtn}</td>
     </tr>`;
   }).join('');
 }
-window.__toggleCat = (prefix,i)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; arr[i].on = !arr[i].on; render(); };
 window.__renameCat = (prefix,i,v)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; arr[i].name = v; };
+window.__toggleHide = (prefix,i)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; arr[i].is_hidden = !arr[i].is_hidden; render(); };
+window.__toggleDelete = (prefix,i)=>{ const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other; const item = arr[i]; const name = item.name; window.__openModal('Delete category', `<p>Permanently exclude <em>${esc(name)}</em> from your setup?</p><p class="help">No transactions exist yet, so this is reversible by exiting and re-launching the wizard.</p>`, [{Cancel:'closeModal()'}, {Delete:`arr.splice(${i},1);closeModal();render();`}]); };
+function sortedList(prefix, list){
+  const sk = prefix==='expenses' ? state.sortExpenses : prefix==='income' ? state.sortIncome : state.sortOther;
+  if(sk.key === 'none') return [...list]; /* preserve intentional insertion order until user clicks a header */
+  const sysPinnedFirst = (a,b)=> (b.system?1:0) - (a.system?1:0);
+  const by = (a,b) => {
+    const va = (a[sk.key] ?? '').toString().toLowerCase();
+    const vb = (b[sk.key] ?? '').toString().toLowerCase();
+    if(va < vb) return sk.dir==='asc' ? -1 : 1;
+    if(va > vb) return sk.dir==='asc' ?  1 : -1;
+    return 0;
+  };
+  return [...list].sort((a,b)=> sysPinnedFirst(a,b) || by(a,b));
+}
+window.__sortBy = (prefix, key)=>{
+  const sk = prefix==='expenses' ? state.sortExpenses : prefix==='income' ? state.sortIncome : state.sortOther;
+  if(sk.key === key) sk.dir = sk.dir==='asc' ? 'desc' : 'asc';
+  else { sk.key = key; sk.dir = 'asc'; }
+  render();
+};
+function sortHeader(prefix, key, label){
+  const sk = prefix==='expenses' ? state.sortExpenses : prefix==='income' ? state.sortIncome : state.sortOther;
+  const active = sk.key === key; /* 'none' never matches a real key, so no column shows active until user clicks */
+  const arrow = active ? (sk.dir==='asc' ? '↑' : '↓') : '↕';
+  return `<th class="sortable ${active?'active':''}" onclick="window.__sortBy('${prefix}','${key}')">${esc(label)}<span class="arrow">${arrow}</span></th>`;
+}
 function renderCats(){
   const s=state.catsStep; const st=CATS_STEPS[s-1];
   let body='';
@@ -555,17 +613,35 @@ function renderCats(){
       <h2 style="margin-top:0">Set up your categories.</h2>
       <p>Categories are the buckets your money gets sorted into. We've pre-seeded them based on Schedule C. You can rename, remove, or add any of them.</p>
       <div class="infobox">You'll see a Schedule C line column on every list. Every category (except Review Later) maps to a single Schedule C line. Pick permissively — any custom name can be tied to any line.</div>
-      <button class="primary" onclick="state.catsStep=2;render()">Next →</button>
+      <div style="margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#fafafa;display:flex;justify-content:space-between;align-items:center;gap:12px;max-width:560px">
+        <div>
+          <div style="font-weight:500">Show 4-digit account numbers</div>
+          <div class="help" style="margin:2px 0 0">Some accountants and business owners like to track their accounts with account numbers. Turn on to show codes like 6000 Advertising next to each category. You can change this anytime in Settings.</div>
+        </div>
+        <div class="switch ${state.showNumbers?'on':''}" onclick="state.showNumbers=!state.showNumbers;render()" title="Toggle account numbers"></div>
+      </div>
+      <button class="primary" style="margin-top:14px" onclick="state.catsStep=2;render()">Next →</button>
     </div>
     <div class="step-cta"><div></div><div class="right"></div></div>`;
   } else if(s===2){
-    const tipAdd = `<tr><td colspan="5"><button onclick="window.__openAdd('expense')">+ Add custom expense category</button></td></tr>`;
     body=`<div class="step-body">
-      <p>Pre-seeded expense categories from Schedule C Part II. Uncheck to skip. Click a row to rename. "Review Later" is added in step 5.</p>
-      <table class="cat-table">
-        <thead><tr><th></th><th>Code</th><th>Name</th><th>Schedule C line</th><th>Descriptor</th></tr></thead>
-        <tbody>${catRowInputs('expenses', state.expenses)}${tipAdd}</tbody>
-      </table>
+      <p>Pre-seeded expense categories from Schedule C Part II. All included by default — click <strong>Hide</strong> to remove one from your setup, or <strong>Delete</strong> to drop it entirely. Click a column header to sort. "Review Later" is added in step 5.</p>
+      <div class="wiz-toolbar">
+        <div></div>
+        <button class="add-btn" onclick="window.__openAdd('expense')">+ Add expense category</button>
+      </div>
+      <div style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+        <table class="cat-table">
+          <thead><tr>
+            ${state.showNumbers ? sortHeader('expenses','code','Code') : '<th></th>'}
+            ${sortHeader('expenses','name','Name')}
+            ${sortHeader('expenses','line','Tax line')}
+            ${sortHeader('expenses','descriptor','Descriptor')}
+            <th></th><th></th>
+          </tr></thead>
+          <tbody>${catRowInputs('expenses', sortedList('expenses', state.expenses))}</tbody>
+        </table>
+      </div>
     </div>
     <div class="step-cta">
       <button onclick="state.catsStep=1;render()">Back</button>
@@ -577,10 +653,22 @@ function renderCats(){
   } else if(s===3){
     body=`<div class="step-body">
       <p>Income accounts all map to Part I, Line 1 (or Part I, Line 7 for Other income). The IRS form is one line for income; the chart can be more granular.</p>
-      <table class="cat-table">
-        <thead><tr><th></th><th>Code</th><th>Name</th><th>Schedule C line</th><th>Descriptor</th></tr></thead>
-        <tbody>${catRowInputs('income', state.income)}<tr><td colspan="5"><button onclick="window.__openAdd('income')">+ Add custom income category</button></td></tr></tbody>
-      </table>
+      <div class="wiz-toolbar">
+        <div></div>
+        <button class="add-btn" onclick="window.__openAdd('income')">+ Add income category</button>
+      </div>
+      <div style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+        <table class="cat-table">
+          <thead><tr>
+            ${state.showNumbers ? sortHeader('income','code','Code') : '<th></th>'}
+            ${sortHeader('income','name','Name')}
+            ${sortHeader('income','line','Tax line')}
+            ${sortHeader('income','descriptor','Descriptor')}
+            <th></th><th></th>
+          </tr></thead>
+          <tbody>${catRowInputs('income', sortedList('income', state.income))}</tbody>
+        </table>
+      </div>
     </div>
     <div class="step-cta">
       <button onclick="state.catsStep=2;render()">Back</button>
@@ -590,28 +678,31 @@ function renderCats(){
       </div>
     </div>`;
   } else if(s===4){
-    const grouped = {
-      'Cash & bank': state.other.filter(o=>o.group==='Cash & bank'),
-      'Credit & loans': state.other.filter(o=>o.group==='Credit & loans'),
-      'Equity': state.other.filter(o=>o.group==='Equity')
+    const groups = ['Cash & bank','Credit & loans','Equity'];
+    const groupBlock = (label) => {
+      const items = sortedList('other', state.other.filter(o => o.group === label));
+      return `
+        <div style="margin-top:14px">
+          <div class="kicker" style="margin:6px 0 4px">${label} (${items.length})</div>
+          <table class="cat-table">
+            <thead><tr>
+              ${state.showNumbers ? sortHeader('other','code','Code') : '<th></th>'}
+              ${sortHeader('other','name','Name')}
+              ${sortHeader('other','type','Type')}
+              ${sortHeader('other','note','Note')}
+              <th></th><th></th>
+            </tr></thead>
+            <tbody>${catRowInputs('other', items)}</tbody>
+          </table>
+        </div>`;
     };
-    const groupBlock = (label, items) => `
-      <div style="margin-top:14px">
-        <div class="kicker" style="margin:6px 0 4px">${label}</div>
-        <table class="cat-table">
-          <thead><tr><th></th><th>Code</th><th>Name</th><th>Type</th><th>Notes</th></tr></thead>
-          <tbody>
-            ${catRowInputs('other', items)}
-            <tr><td colspan="5"><button onclick="window.__openAdd('other')">+ Add custom ${label.toLowerCase()} account</button></td></tr>
-          </tbody>
-        </table>
-      </div>`;
     body=`<div class="step-body">
       <p>Pre-seeded asset, liability, and equity accounts, grouped. These don't carry a Schedule C mapping (they appear on the balance sheet, not the income statement).</p>
-      ${groupBlock('Cash & bank', grouped['Cash & bank'])}
-      ${groupBlock('Credit & loans', grouped['Credit & loans'])}
-      ${groupBlock('Equity', grouped['Equity'])}
-      <p class="help muted" style="margin-top:14px">Default sort: alphabetical by name. Codes assigned in alphabetical order.</p>
+      <div class="wiz-toolbar">
+        <div></div>
+        <button class="add-btn" onclick="window.__openAdd('other')">+ Add account</button>
+      </div>
+      ${groups.map(groupBlock).join('')}
     </div>
     <div class="step-cta">
       <button onclick="state.catsStep=3;render()">Back</button>
@@ -727,15 +818,38 @@ window.__openModal = (title, body, buttons) => {
 };
 window.closeModal = ()=>$('#modalBack').classList.remove('open');
 window.__openAdd = (kind)=>{
-  const lineOptions = kind==='income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
-  const opts = lineOptions.map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
-  window.__openModal('Add custom category', `
+  /* `kind` is the wizard's calling context: 'expense' | 'income' | 'other'.
+     The Type dropdown defaults to that context. */
+  const typeDefault = kind==='income' ? 'Income' : (kind==='other' ? 'Asset' : 'Expense');
+  const lineOptionsFor = (type) => {
+    if(type==='Income') return IRS_INCOME_LINES;
+    if(type==='Expense') return IRS_EXPENSE_LINES;
+    return [];
+  };
+  const typeOpts = ['Expense','Income','Asset','Liability','Equity']
+    .map(t=>`<option value="${t}" ${t===typeDefault?'selected':''}>${t}</option>`).join('');
+  const buildLineOpts = (type) => lineOptionsFor(type)
+    .map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
+  window.__openModal('Add account', `
+    <label>Type <span class="req">*</span></label>
+    <select id="m-type" onchange="document.getElementById('m-line-wrap').style.display=this.value==='Expense'||this.value==='Income'?'':'none';document.getElementById('m-line').innerHTML=window.__buildLineOpts(this.value);">
+      ${typeOpts}
+    </select>
     <label>Name <span class="req">*</span></label>
-    <input type="text" id="m-name" placeholder="Quilting Supplies">
-    <label>Schedule C line <span class="req">*</span></label>
-    <select id="m-line">${opts}</select>
-    <p class="help">Permissive — you can map any custom name to any line.</p>
-  `, [{Cancel:'closeModal()'}, {Add:`alert('Added custom category. (Demo.)');closeModal();`}]);
+    <input type="text" id="m-name" placeholder="Category name">
+    <label>Code <span class="req">*</span></label>
+    <input type="text" id="m-code" placeholder="e.g. 6300" inputmode="numeric" maxlength="4">
+    <div id="m-line-wrap">
+      <label>Tax Line Item (Schedule C of IRS Form 1040) <span class="req">*</span></label>
+      <select id="m-line">${buildLineOpts(typeDefault)}</select>
+    </div>
+    <label>Note</label>
+    <textarea id="m-note" rows="2" placeholder="Optional. Shown in audit logs and Reports drill-down."></textarea>
+  `, [{Cancel:'closeModal()'}, {Save:`alert('Added account. (Demo.)');closeModal();`}]);
+};
+window.__buildLineOpts = (type)=>{
+  const src = type==='Income' ? IRS_INCOME_LINES : type==='Expense' ? IRS_EXPENSE_LINES : [];
+  return src.map(l=>`<option value="${l.id}">${l.label} — ${l.desc}</option>`).join('');
 };
 window.__openEdit = (prefix,i)=>{
   const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;

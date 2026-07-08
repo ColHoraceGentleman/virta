@@ -1,7 +1,7 @@
 # Virta Books — Setup Wizard & Categories Management Spec
 
 **Owner:** Rusty
-**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer).
+**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer). **Round 3 applied 2026-07-08** (stripped step 1, renamed Your Name, fixed step 6 UX). **Round 4 applied 2026-07-08** (Chantelle-specific placeholders removed; Categories wizard step 2 got Hide/Delete + sticky header + sortable columns + "show account numbers" wizard prompt; step 3 reordered (Sales first, Other Income last); step 4 unified to single Add Account button; Add modal got Type picker + Note field + relabeled "Tax Line Item (Schedule C of IRS Form 1040)").
 **Replaces:** Section 1 (Chart of Accounts) of `ACCOUNTING-v1.md` — keeps the rest of v1 intact.
 
 ---
@@ -68,6 +68,10 @@ Decisions from the 2026-07-07 planning session, locked in:
 | D18 | Edit-on-review pattern: clicking a row's pencil opens an inline expand-in-place editor. Cancel = revert. Save = persist to wizard state and re-render the review row. |
 | D19 | Welcome screen explains Schedule C ("we'll ask for the same basic info that's on IRS Form 1040 Schedule C, the tax form sole proprietors file") and previews the next wizard ("Up next: pre-fill your categories from Schedule C"). |
 | D20 | Categories Wizard step 4 "Other accounts" renders with three subheaders: **Cash & bank accounts** / **Credit & loans** / **Equity**. Each subheader has its own table + "Add custom" button. (Property & equipment is a reserved subheader for v2 — schema includes it; not in v1 seed.) |
+| D21 | Categories wizard step 2 (expense) and step 3 (income) tables render with **Hide** and **Delete** buttons on the right (no left-side checkboxes; "include by default" is the model). Header row is sticky. Each column header is clickable to sort; default alphabetical by name, ascending. The "Show account numbers" toggle is offered once on **Categories Wizard Step 1 (Welcome)**, not repeated per step — the choice cascades through all subsequent wizard screens. |
+| D22 | Categories Wizard step 4 has a single top-of-step "Add account" button that opens the generic Add modal with a Type picker. No per-subheader Add buttons. |
+| D23 | Default Income ordering: **Sales → Refunds & Returns → Other Income** (not alphabetical). Codes: 4000/4010/4020. Sales at 4000 because it's the primary inflow. "Other Income" last because it's the catch-all for refund/adjustment edge cases. |
+| D24 | Add Account modal is generic — used by both wizard and management screens. Fields: **Type** (Expense / Asset / Liability / Equity / Income) + Name + Code + **Tax Line Item (Schedule C of IRS Form 1040)** + **Note**. Type picker changes which Schedule C line options are shown (expense → expense lines, income → income lines, others → no line). |
 
 ---
 
@@ -78,8 +82,8 @@ Decisions from the 2026-07-07 planning session, locked in:
 ```sql
 CREATE TABLE businesses (
   id TEXT PRIMARY KEY,
-  proprietor_name TEXT,                          -- "Chantelle Bailey"
-  business_name TEXT,                            -- "Chantelle Bailey Design"
+  proprietor_name TEXT,                          -- legal name of the sole proprietor
+  business_name TEXT,                            -- trade name shown on invoices
   trade_name TEXT,                               -- optional, distinct from business_name
   business_description TEXT,                     -- Schedule C field A
   naics_code TEXT,                               -- Schedule C field B, optional
@@ -263,72 +267,91 @@ Backing data: a bundled offline JSON snapshot at `server/src/books/data/naics-20
 
 Headline: "Set up your categories." Body explains that categories = "the buckets your money gets sorted into" and that they're pre-seeded based on Schedule C. "You can rename, remove, or add any of them."
 
+**Display preference** (lives on this screen, not repeated per step):
+
+```
+Show 4-digit account numbers   ◯ on/off      (default: OFF)
+
+[helper text] Some accountants and business owners like to track their accounts with account numbers. We'll show codes like 6000 Advertising next to each category when this is on. You can change this anytime in Settings → Categories.
+```
+
+This single toggle cascades through every subsequent categories screen in the wizard (steps 2, 3, 4) and writes to `settings.show_account_numbers` immediately. No per-step repetition. (Reverse decision note: this used to be per-step; moved to Step 1 to centralize the preference. See daily note 2026-07-08 ~10:42 MDT.)
+
 CTA: "Next."
 
 ### Step 2: Expense categories
 
-Table:
+**Layout:**
 
-| Checkbox | Number | Name | Schedule C line | Description |
-|---|---|---|---|---|
-| ☑ | 6000 | Advertising | Line 8 | "Ads, marketing, promotions" |
-| ☑ | 6100 | Vehicle | Line 9 | "Car and truck expenses for business" |
-| ... | ... | ... | ... | ... |
+```
+[ + Add expense category                ]   ← top button (above table)
 
-(See §10 for the full default list.)
+┌───────────────────────────────────────────────────────────────┐
+│ Name ↑  │ Code │ Tax line │ Descriptor  │         │          │ ← sticky header
+├─────────┼──────┼──────────┼─────────────┼─────────┼──────────┤
+│ Account │ 6000 │ Line 16b │ Bookkeeper… │ Hide    │ Delete   │
+│ Advert. │ 6010 │ Line 8   │ Ads, mktg…  │ Hide    │ Delete   │
+│ …       │ …    │ …        │ …           │ …       │ …        │
+└───────────────────────────────────────────────────────────────┘
+```
 
-User can:
+**Behavior:**
 
-- Toggle a checkbox on/off
-- Edit the Name inline
-- See the Schedule C line — clicking the line number opens a popover with the IRS descriptor
-- Add a custom expense: "Add another expense category" button → modal: Name (text) + Schedule C line picker (dropdown with all ~20 line options + descriptors)
+- All pre-seeded expenses are included by default (no left-side checkboxes). To exclude, click **Hide**. To remove from this session entirely, click **Delete** (confirmation modal).
+- Each column header is clickable to sort. Default sort: Name, ascending (alphabetical). Active column shows ↑ or ↓; other columns show ↕.
+- Header row is sticky during vertical scroll.
+- "Show account numbers" toggle was set on **Step 1 (Welcome)** and cascades here — no per-step toggle on this screen. Default: OFF (per Patrick's 2026-07-08 10:45 MDT feedback — frame as opt-in, not opt-out).
+- Row-level Name editable inline by clicking the name cell.
+- Row-level Tax line: badge-style display, click to open a popover with the IRS descriptor + ability to change.
+- "+ Add expense category" button is at the top of the step (single button, not "Add custom expense category"). Click → opens the generic Add Account modal (§8.2) pre-set to Type = Expense.
 
-Skip = all defaults pre-checked.
+**Skip behavior:** skipping = all defaults included (i.e. user adds nothing, hides nothing, deletes nothing). To skip cleanly with no interaction, click "Skip (use all defaults)".
 
 ### Step 3: Income categories
 
-Same structure as expense, but smaller list. Only Schedule C Part I line 1 maps to all income categories.
+Same layout as step 2 (Hide/Delete on the right, sticky header, sortable columns). Account-numbers toggle was set on Step 1. Single "+ Add income category" button at the top.
 
-Default income list:
-- 4000 Sales (mapped to Part I line 1: Gross receipts)
-- 4010 Other Income (mapped to Part I line 1)
-- 4900 Refunds & Returns (mapped to Part I line 1)
+**Default ordering (intentional, not alphabetical — exception to D16):**
 
-Plus: option to "Add another income category" with the same Picker.
+- **#1 — 4000 Sales** (mapped to Part I line 1 — the primary inflow)
+- **#2 — 4010 Refunds & Returns** (mapped to Part I line 7)
+- **#3 — 4020 Other Income** (mapped to Part I line 1, secondary)
+
+Rationale: Sales is the user-facing main account and gets the lowest number. Other Income is a catch-all and is last. Spec §13 locks this — CW-007 exception for the income list (alphabetical default applies only to expenses + other).
 
 ### Step 4: Asset / Liability / Equity (with subheaders)
 
-Pre-seeded list, all checked by default, **rendered in three subheader groups** (each its own table with its own "Add custom" button):
+**Layout:**
 
-**Cash & bank accounts** (Asset)
+```
+[ + Add account                         ]   ← single button at top, opens generic Add modal with Type picker
 
-| Number | Name | Type |
-|---|---|---|
-| 1010 | Business Checking | Asset |
-| 1020 | Business Savings | Asset |
-| 1100 | Cash on Hand | Asset |
+Cash & bank accounts (3)
+  ┌──────────┬──────┬───────┬─────────┬──────┐
+  │ Name ↑   │ Code │ Type  │         │      │   ← sticky header
+  ├──────────┼──────┼───────┼─────────┼──────┤
+  │ Checking │ 1010 │ Asset │ Hide    │ Del  │
+  │ Savings  │ 1020 │ Asset │ Hide    │ Del  │
+  │ …        │ …    │ …     │ …       │ …    │
+  └──────────┴──────┴───────┴─────────┴──────┘
 
-**Credit & loans** (Liability)
+Credit & loans (2)
+  ┌──────────┬──────┬──────────┬─────────┬──────┐
+  │ Name ↑   │ Code │ Type     │         │      │
+  ...
 
-| Number | Name | Type |
-|---|---|---|
-| 2000 | Business Credit Card | Liability |
-| 2100 | Loans Payable | Liability |
+Equity (3)
+  ┌──────────┬──────┬───────┬─────────┬──────┐
+  │ Name ↑   │ Code │ Type  │         │      │
+  ...
+```
 
-**Equity**
+**Behavior:**
 
-| Number | Name | Type |
-|---|---|---|
-| 3000 | Owner's Equity | Equity |
-| 3100 | Owner Draws | Equity |
-| 3200 | Owner Contributions | Equity |
-
-Reserved subheader for v2: **Property & equipment** (Vehicles, Equipment, Real Estate) — schema already supports it; not in v1 seed.
-
-Same toggle / rename / add behavior per row. The whole step is still skippable (= accept all defaults).
-
-**Default sort order (applies to every table in every wizard step and the management screen): alphabetical by name, ascending.** Account codes are assigned at seed time in alphabetical order — e.g. 6000 Advertising, 6010 Accounting, 6020 Car & truck — so the printed/numbered list reads naturally. No manual numbering override UI in v1.
+- One "Add account" button for the whole step (no per-subheader Add buttons). Click → opens generic Add Account modal (§8.2) with Type picker pre-focused.
+- Each subheader has its own table — accounts don't get mixed across types.
+- Hide/Delete + sticky header + sortable columns — same patterns as steps 2 and 3. Account-numbers toggle was set on Step 1.
+- All defaults pre-included. Skip = accept all defaults.
 
 ### Step 5: Review Later
 
@@ -377,9 +400,24 @@ Menu:
 - Delete (blocked if transactions reference — see delete flow below)
 - Merge with… (pick destination account; see merge flow below)
 
-### 8.2 Add custom
+### 8.2 Add account modal (generic, used everywhere)
 
-Same as the wizard step 4 add-custom UX. Available from any tab. Same required field: Schedule C line.
+The Add Account modal is generic — used by both the wizards (steps 2, 3, and 4) and the management screen. Fields:
+
+| Field | Type | Required? | Notes |
+|---|---|---|---|
+| Type | dropdown | Yes | Expense / Asset / Liability / Equity / Income. Default in wizard: the step's type. Default in management: Expense. |
+| Name | text | Yes | |
+| Code | text | Yes (auto-suggested) | Auto-incremented from the highest existing code in the same type group. User can override. |
+| Tax Line Item (Schedule C of IRS Form 1040) | picker | Yes if Type = Expense or Income; noop otherwise | Picker shows IRS line numbers + descriptors. For Expense: ~20 lines from Part II. For Income: 2 lines from Part I. For Asset/Liability/Equity: not applicable, picker hidden or disabled. |
+| Note | text | No | Free-form. Used in audit logs and Reports → Transactions drill-down. |
+
+**Buttons:** Cancel / Save. Save persists to `accounts` if in management; pushes into wizard state if in a wizard. In wizards, the new account is pre-selected (included by default) so the user finishes setup with their addition included.
+
+**Validation:**
+- Type must be selected
+- Name required
+- Code must be a 4-digit number; warn (not block) if not in the conventional range for the type (6xxx for expense, 4xxx for income, 1xxx for asset, 2xxx for liability, 3xxx for equity).
 
 ### 8.3 Delete flow
 
@@ -473,13 +511,13 @@ Single page hosts the management UI per §8.
 
 (23 entries, including Review Later. "Car & Truck" replaces the old "Vehicle" name to match the IRS descriptor exactly. Some Schedule C lines — 22, 23 non-deductible meals, 27a catchall, 28 COGS, 29 utilities bundled, 30 home office — are intentionally *not* pre-seeded. Users can add them via the "Add custom" path if needed.)
 
-### Income (3 default, alphabetical)
+### Income (3 default, intentional order — exception to D16)
 
 | Code | Name | Schedule C line |
 |---|---|---|
-| 4000 | Other Income | Part I line 1 |
+| 4000 | Sales | Part I line 1 |
 | 4010 | Refunds & Returns | Part I line 7 |
-| 4020 | Sales | Part I line 1 |
+| 4020 | Other Income | Part I line 1 |
 
 ### Assets / Liabilities / Equity (8 default, alphabetical within each subheader)
 
@@ -614,6 +652,20 @@ Wren review focuses on these behaviors (behavior IDs to be assigned in `qa/QA.md
 | CW-005 | Final review shows correct counts |
 | CW-006 | "Other accounts" step renders 3 subheader groups (Cash & bank / Credit & loans / Equity), each with its own table + "Add custom" |
 | CW-007 | All category tables default to alphabetical sort by name; account codes match alphabetical order (except Review Later = 6999) |
+| CW-008 | No left-side checkboxes in categories tables; rows have **Hide** and **Delete** buttons on the right |
+| CW-009 | Clicking **Hide** on a row removes it from the saved list (set `is_hidden = 1` in wizard state); not deleted from defaults |
+| CW-010 | Clicking **Delete** shows confirmation modal ("permanently exclude this category from your setup?") and on confirm removes the row from wizard state |
+| CW-011 | Header row is sticky during vertical scroll on every categories table |
+| CW-012 | Each column header is clickable to sort; default alphabetical by name ascending; active column shows ↑/↓, others show ↕ |
+| CW-013 | "Show account numbers" toggle is offered at the top of each categories wizard step; toggling writes to `settings.show_account_numbers` immediately and persists into the management screen |
+| CW-014 | Categories wizard step 4 (Other accounts) has a single "Add account" button at the top; no per-subheader Add buttons |
+| CW-015 | "Add account" / "Add expense category" / "Add income category" buttons open the same generic Add modal — different label only, same fields |
+| CW-016 | Add modal field labels: **Type** + Name + Code + **Tax Line Item (Schedule C of IRS Form 1040)** + Note |
+| CW-017 | Add modal Type picker changes which Schedule C lines are shown: Expense → Part II lines; Income → Part I lines; Asset/Liability/Equity → none / hidden |
+| CW-018 | Add modal Note field is optional, free-form text |
+| CW-019 | Income default order: **Sales → Refunds & Returns → Other Income** (not alphabetical; exception to D16) |
+| CW-020 | Setup Wizard step 2 placeholders are generic (e.g. "Your name", "Business name") — no Chantelle-specific examples |
+| SW-010 | Setup Wizard step 2 (Basic business info) renders with empty placeholders, no user-specific examples |
 | CM-001 | Categories list: every account shows its Schedule C line as a column |
 | CM-002 | Rename: no confirmation; transactions unchanged |
 | CM-003 | Schedule C remap: inline confirm; historical transactions reroute in aggregate views |
