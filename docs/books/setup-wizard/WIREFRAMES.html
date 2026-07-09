@@ -157,13 +157,13 @@
   <aside class="sidebar">
     <div class="brand"><span class="logo">⚙️</span> Virta Books</div>
     <nav class="nav" id="sidebar">
-      <a href="#" data-screen="dashboard">🏠 Dashboard</a>
+      <a href="#" data-screen="dashboard" class="active">🏠 Dashboard</a>
       <a href="#" data-screen="invoices">🧾 Invoices</a>
       <a href="#" data-screen="transactions">💸 Transactions</a>
       <a href="#" onclick="state.screen='mgmt';state.catFilter='all';render()"><span>📂 Categories</span><span class="review-pill" id="reviewBadge" hidden>0</span></a>
       <div class="section">Setup</div>
       <a href="#" data-screen="setup">🚀 Run setup wizard</a>
-      <a href="#" data-screen="settings" class="active">⚙️ Settings</a>
+      <a href="#" data-screen="settings">⚙️ Settings</a>
     </nav>
   </aside>
   <main id="root"></main>
@@ -1397,7 +1397,7 @@ function renderSettings(){
 }
 
 /* ---- ROUTING ---- */
-state.screen = state.screen || 'settings';
+state.screen = state.screen || 'dashboard';
 function render(){
   const s = state.screen;
   if(s==='setup') return renderSetup();

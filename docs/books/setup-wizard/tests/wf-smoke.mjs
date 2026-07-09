@@ -643,6 +643,9 @@ check('(P1) No "COGS" or "Cost of Goods" UI text in wireframe (D53: COGS is v3, 
 check('(P1) No "close fiscal year" or year-end-close UI anywhere (D56: no explicit close, auto-flows to Equity)', !/close.{0,3}(fiscal )?year/i.test(scriptSrc));
 check('(R16) Sidebar no longer has a separate General Ledger link (merged into Transactions)', !scriptSrc.includes('data-screen="ledger"') && !scriptSrc.includes('General Ledger'));
 check('(R16) data-screen="transactions" routes to renderLedger()', /if\(s==='transactions'\)\s+return renderLedger/.test(scriptSrc));
+check('(R17) Default landing screen is Dashboard (was Settings)', /state\.screen = state\.screen \|\| 'dashboard'/.test(scriptSrc));
+check('(R17) Sidebar Dashboard link has class="active" (matches default)', /data-screen="dashboard" class="active"/.test(scriptSrc));
+check('(R17) Sidebar Settings link no longer has class="active" (was hardcoded)', !/data-screen="settings" class="active"/.test(scriptSrc));
 
 // --- Round 15 (Phase 1 cleanup) ---
 const specSrc = readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/SETUP_AND_CATEGORIES.md', 'utf8');
