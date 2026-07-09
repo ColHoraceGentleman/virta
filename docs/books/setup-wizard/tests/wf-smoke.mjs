@@ -650,6 +650,10 @@ check('(R18) Switching Type to Asset updates Change label to "Change in the Asse
 check('(R18) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
 check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
 check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
+check('(R20) Manual-entry modal does NOT pre-fill Change (no stale value=)', /id="je-change"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-change"[^>]*value=/.test(manualEntryModal));
+check('(R20) Manual-entry modal defaults Date to today (computed at modal open), not a stale literal (R20 Patrick call: Date defaults to current date; Change + Description + Other account are blank)', /id="je-date"[^>]*value="\d{4}-\d{2}-\d{2}"/.test(manualEntryModal));
+check('(R20) Modal HTML has no "250.00" or "2026-07-11" defaults left over', !/value="250\.00"/.test(manualEntryModal) && !/value="2026-07-11"/.test(manualEntryModal));
+check('(R20) Type field IS pre-filled with "Expense" (the one exception per Patrick 2026-07-09)', /<option value="Expense" selected="">Expense<\/option>/.test(manualEntryModal));
 
 state.screen = 'mgmt';
 state.catFilter = 'all';

@@ -1052,7 +1052,7 @@ window.__openManualEntry = ()=>{
     <div style="display:grid;grid-template-columns:160px 1fr;gap:10px 12px;align-items:end">
       <div>
         <label>Date</label>
-        <input type="date" id="je-date" value="2026-07-11">
+        <input type="date" id="je-date" value="${new Date().toISOString().slice(0,10)}">
       </div>
       <div style="grid-column:1 / -1">
         <label>Type</label>
@@ -1064,7 +1064,7 @@ window.__openManualEntry = ()=>{
       <div style="grid-column:1 / -1" id="je-account-row"></div>
       <div>
         <label id="je-change-label">Amount of Expense</label>
-        <input type="text" id="je-change" inputmode="decimal" placeholder="0.00" value="250.00">
+        <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
         <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
       </div>
       <div>

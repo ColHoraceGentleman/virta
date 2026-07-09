@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | Wireframe | `WIREFRAMES.html` | 1425 | ~88 KB | Single-file SPA. Open in browser, click around. Includes General Ledger page (Phase 1). |
 | Spec | `SETUP_AND_CATEGORIES.md` | 868 | ~56 KB | 67 decisions (D1–D67), 38 behavior IDs in §13, §10A formal schema, GL columns locked (D59). |
-| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~680 | — | **232/232 passing** as of round 18 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
+| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~680 | — | **238/238 passing** as of round 20 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
 
 **Feedback archive** in same folder:
 - `FEEDBACK-wireframes-2026-07-08.md` (round 1)
@@ -135,4 +135,5 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 | 2026-07-09 11:10 MDT | Round 16: sidebar **General Ledger** link renamed to **Transactions** (D68). Functionally unchanged — `renderLedger()` still backs the page; only the user-facing nav label changed. Smoke 218/218. | `157bce0` |
 | 2026-07-09 11:12 MDT | Round 17: default landing screen is **Dashboard** (D69), not Settings. Sidebar active-state moved accordingly. Smoke 221/221. | `04e8636` |
 | 2026-07-09 11:35 MDT | Round 18: manual-entry modal gets a **Type picker as the first field** (D62, D64 revised). Type filters the Account list and drives the Change label + helper copy. Sign convention D63 unchanged. Smoke 232/232. | `653b185` + `6e0c32e` + `fbb6e77` |
-| 2026-07-09 11:54 MDT | Round 19: manual-entry Description field uses a placeholder ("e.g. Office supplies from Amazon, customer refund, paid credit card") instead of pre-filled "Owner draw adjustment" default. Smoke 234/234. | (pending) |
+| 2026-07-09 11:54 MDT | Round 19: manual-entry Description field uses a placeholder ("e.g. Office supplies from Amazon, customer refund, paid credit card") instead of pre-filled "Owner draw adjustment" default. Smoke 234/234. | `a3d27c2` |
+| 2026-07-09 11:56 MDT | Round 20: clear all manual-entry defaults. Type=Expense (the one allowed default), Date=today (computed at modal open), Change + Description + Other account = blank placeholders. Smoke 238/238. | (pending) |
