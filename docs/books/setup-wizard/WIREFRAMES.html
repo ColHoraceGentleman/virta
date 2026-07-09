@@ -1096,13 +1096,9 @@ window.__openManualEntry = ()=>{
         <input type="text" id="je-desc" placeholder="e.g. Office supplies from Amazon, customer refund, paid credit card">
         <div class="help">Optional, but useful for finding this entry later.</div>
       </div>
-      <div id="je-matched-link-wrap">
-        <button type="button" class="je-add-link" id="je-matched-link" onclick="window.__jeToggleField('matched', true)">+ Add Matched with</button>
-      </div>
-      <div id="je-matched-field" style="display:none">
+      <div id="je-matched-field">
         <div class="je-field-head">
           <label>Matched with</label>
-          <button type="button" class="je-remove-link" onclick="window.__jeToggleField('matched', false)">remove</button>
         </div>
         <select id="je-other" onchange="window.__jeCheckMatched(this)">${accountOptionList()}</select>
         <div class="help">The other side of the entry — the account that moved in the opposite direction. Defaults to your default cash account from Setup Wizard.</div>
@@ -1178,9 +1174,9 @@ window.__jeSave = (keepOpen)=>{
     setVal('je-desc', '');
     setVal('je-other', '');
     setVal('je-note', '');
-    /* Collapse optional fields back to their + Add X links. */
+    /* Collapse optional fields back to their + Add X links.
+       Matched with is now always visible (round 27) — required for double-entry — so we don't toggle it. */
     window.__jeToggleField('desc', false);
-    window.__jeToggleField('matched', false);
     window.__jeToggleField('note', false);
     /* Refocus the first field for fast next-entry typing. */
     const date = document.getElementById('je-date');

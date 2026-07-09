@@ -668,8 +668,10 @@ check('(R26/D62-revised) Manual-entry default view has 5 visible fields: Date, T
   ['Date','Type','Category','Name','Amount'].every(l => mev26.includes(`<label>${l}</label>`)));
 
 // 2-4. The three "+ Add X" links are present in the default-view HTML.
+// Round 27: Matched with is now ALWAYS visible (required for double-entry), so its "+ Add" link is gone.
+// Only Description and Note are behind + Add links.
 check('(R26) "+ Add description" link is present in the default view', mev26.includes('+ Add description'));
-check('(R26) "+ Add Matched with" link is present in the default view', mev26.includes('+ Add Matched with'));
+check('(R27) "+ Add Matched with" link is NOT in the default view (Matched with is required and always visible)', !mev26.includes('+ Add Matched with'));
 check('(R26) "+ Add note" link is present in the default view', mev26.includes('+ Add note'));
 
 // Helper for style assertions (getComputedStyle isn't a Node global; it's on jsdom's window object).
@@ -680,8 +682,8 @@ const isVisible = el => el && window.getComputedStyle(el).display !== 'none';
 const descFieldAtOpen     = $('#je-desc-field');
 const matchedFieldAtOpen  = $('#je-matched-field');
 const noteFieldAtOpen     = $('#je-note-field');
-check('(R26) Description / Matched with / Notes fields are NOT visible at modal-open (display:none on wrapper)',
-  isHidden(descFieldAtOpen) && isHidden(matchedFieldAtOpen) && isHidden(noteFieldAtOpen));
+check('(R26/R27) Description and Note fields are NOT visible at modal-open (display:none on wrapper) but Matched with IS visible (round 27: required)',
+  isHidden(descFieldAtOpen) && isVisible(matchedFieldAtOpen) && isHidden(noteFieldAtOpen));
 
 // 6. Save and new button is in the footer with the right onclick handler.
 check('(R26/D71) Footer has Save and new button calling __jeSave(true)',
