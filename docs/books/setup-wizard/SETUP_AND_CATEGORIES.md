@@ -870,3 +870,7 @@ See `WIREFRAMES.html` in this folder. Walkthrough covers:
 ---
 
 *Last updated: 2026-07-07. Replaces §1 (Chart of Accounts) of `ACCOUNTING-v1.md`.*
+
+---
+
+**Round 27 applied 2026-07-09** — manual-entry modal: Matched with restored to default view (required for double-entry, can't be hidden). Description and Note remain collapsed. Phase 7 card carries the deeper layout concerns (layout-space waste, visual design, modal chrome, validation).
