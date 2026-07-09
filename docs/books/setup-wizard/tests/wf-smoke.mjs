@@ -613,7 +613,7 @@ check('(P1) Ledger page keeps accounting concepts behind the scenes', ledgerHtml
 window.__openManualEntry();
 const manualEntryModal = $('#modal').innerHTML;
 check('(P1) New manual entry opens "New entry" modal (D62)', manualEntryModal.includes('New entry'));
-check('(P1) Manual entry modal has Date, Type, Account, Change, Description, Matched with, Notes fields (D62, D59 column-name consistency)', ['Date','Type','Account','Description','Matched with','Notes'].every(label => manualEntryModal.includes(label)));
+check('(P1) Manual entry modal has Date, Type, Category, [Amount], Name, Description, Matched with, Notes fields (D62, D59 column-name consistency: R22 aligns Account → Category, R23 adds Name to match GL column; "Change" is not a field — it is part of the type-aware Amount label for Asset/Liability/Equity)', ['Date','Type','Category','Name','Description','Matched with','Notes'].every(label => manualEntryModal.includes(label)));
 check('(P1) Manual entry modal avoids debit/credit labels', !/>Debit</i.test(manualEntryModal) && !/>Credit</i.test(manualEntryModal) && !/Debit\s*\/\s*Credit/i.test(manualEntryModal));
 check('(P1) Manual entry modal explains balanced ledger entry happens behind the scenes', manualEntryModal.includes('balanced ledger entry behind the scenes'));
 check('(P1) Manual entry modal has only Save (no Save draft / Post entry split) (D65)', !/Save draft|Post entry/.test(manualEntryModal));
@@ -650,6 +650,7 @@ check('(R18) Switching Type to Asset updates Change label to "Change in the Asse
 check('(R18) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
 check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
 check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
+check('(R23) Name field has a placeholder with examples (vendor/customer) and is optional', /id="je-name"[^>]*placeholder="[^"]*"/.test(manualEntryModal) && !/id="je-name"[^>]*value=/.test(manualEntryModal) && /vendor/i.test(manualEntryModal) && /customer/i.test(manualEntryModal));
 check('(R20) Manual-entry modal does NOT pre-fill Change (no stale value=)', /id="je-change"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-change"[^>]*value=/.test(manualEntryModal));
 check('(R20) Manual-entry modal defaults Date to today (computed at modal open), not a stale literal (R20 Patrick call: Date defaults to current date; Change + Description + Matched with are blank)', /id="je-date"[^>]*value="\d{4}-\d{2}-\d{2}"/.test(manualEntryModal));
 check('(R20) Modal HTML has no "250.00" or "2026-07-11" defaults left over', !/value="250\.00"/.test(manualEntryModal) && !/value="2026-07-11"/.test(manualEntryModal));

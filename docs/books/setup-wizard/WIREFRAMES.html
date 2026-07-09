@@ -1038,11 +1038,9 @@ window.__openManualEntry = ()=>{
   const render = (type) => {
     const opts = accountOptionsFor(type);
     const L = labelsFor(type);
-    document.getElementById('je-account-row').innerHTML = `
-      <label>Account</label>
-      <select id="je-account">${opts}</select>
-      <div class="help">Only ${type.toLowerCase()} accounts are shown. Pick the specific account that changed.</div>
-    `;
+    document.getElementById('je-account').innerHTML = opts;
+    const helpEl = document.getElementById('je-account-help');
+    if (helpEl) helpEl.textContent = `Only ${type.toLowerCase()} accounts are shown. Pick the specific category that changed.`;
     document.getElementById('je-change-label').textContent = L.label;
     document.getElementById('je-change-help').textContent = `Positive = ${L.pos}. Negative = ${L.neg}.`;
   };
@@ -1061,11 +1059,20 @@ window.__openManualEntry = ()=>{
         </select>
         <div class="help">Pick the type first — it filters the Account list and sets the right language below.</div>
       </div>
-      <div style="grid-column:1 / -1" id="je-account-row"></div>
+      <div style="grid-column:1 / -1" id="je-account-row">
+        <label>Category</label>
+        <select id="je-account"></select>
+        <div class="help" id="je-account-help">Only expense accounts are shown. Pick the specific category that changed.</div>
+      </div>
       <div>
         <label id="je-change-label">Amount of Expense</label>
         <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
         <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
+      </div>
+      <div>
+        <label>Name</label>
+        <input type="text" id="je-name" placeholder="e.g. Amazon, Acme Corp, John Smith">
+        <div class="help">Who this is with — vendor for expenses, customer for income. Optional.</div>
       </div>
       <div>
         <label>Description</label>
