@@ -287,6 +287,13 @@ export default function TodaySidebar({ open, onToggle, darkMode, onTaskClick, re
             </span>
           )}
         </button>
+        <button
+          onClick={() => { window.location.href = '/books'; }}
+          title="Open Virta Books"
+          className={`mt-3 p-1.5 rounded-md ${muted} ${btnHov} transition-colors`}
+        >
+          📒
+        </button>
       </div>
     );
   }
