@@ -105,7 +105,8 @@
   .switch.on::after{transform:translateX(16px)}
   .modal-back{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50}
   .modal-back.open{display:flex}
-  .modal{background:#fff;border-radius:10px;width:540px;max-width:92vw;box-shadow:0 20px 60px rgba(15,23,42,.25);overflow:hidden}
+  .modal{background:#fff;border-radius:10px;width:540px;max-width:92vw;max-height:90vh;box-shadow:0 20px 60px rgba(15,23,42,.25);overflow:hidden;display:flex;flex-direction:column}
+  .modal .body{overflow-y:auto;flex:1 1 auto}
   .modal header{padding:14px 18px;border-bottom:1px solid var(--line);font-weight:600}
   .modal .body{padding:16px 18px}
   .modal footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#fafafa}
@@ -1041,33 +1042,27 @@ window.__openManualEntry = ()=>{
     document.getElementById('je-account').innerHTML = opts;
     const helpEl = document.getElementById('je-account-help');
     if (helpEl) helpEl.textContent = `Only ${type.toLowerCase()} accounts are shown. Pick the specific category that changed.`;
-    document.getElementById('je-change-label').textContent = L.label;
     document.getElementById('je-change-help').textContent = `Positive = ${L.pos}. Negative = ${L.neg}.`;
   };
   const initialType = 'Expense';
   window.__openModal('New entry', `
-    <div class="infobox" style="margin-bottom:12px">Pick the type of account that changed, then the specific account, then type the amount. The system handles the balanced ledger entry behind the scenes — no debits or credits to think about.</div>
-    <div style="display:grid;grid-template-columns:160px 1fr;gap:10px 12px;align-items:end">
+    <div class="infobox" style="margin-bottom:14px">Pick the type of account that changed, then the specific category, the amount, and who it's with. The system handles the balanced ledger entry behind the scenes — no debits or credits to think about.</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
       <div>
         <label>Date</label>
         <input type="date" id="je-date" value="${new Date().toISOString().slice(0,10)}">
       </div>
-      <div style="grid-column:1 / -1">
+      <div>
         <label>Type</label>
         <select id="je-type" onchange="window.__jeRenderBody(this.value)">
           ${typeOptions.map(t => `<option value="${t}" ${t===initialType?'selected':''}>${t}</option>`).join('')}
         </select>
-        <div class="help">Pick the type first — it filters the Account list and sets the right language below.</div>
-      </div>
-      <div style="grid-column:1 / -1" id="je-account-row">
-        <label>Category</label>
-        <select id="je-account"></select>
-        <div class="help" id="je-account-help">Only expense accounts are shown. Pick the specific category that changed.</div>
+        <div class="help">Pick the type first — it filters the Category list below.</div>
       </div>
       <div>
-        <label id="je-change-label">Amount</label>
-        <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
-        <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
+        <label>Category</label>
+        <select id="je-account">${accountOptionsFor(initialType)}</select>
+        <div class="help" id="je-account-help">Only ${initialType.toLowerCase()} accounts are shown. Pick the specific category that changed.</div>
       </div>
       <div>
         <label>Name</label>
@@ -1075,25 +1070,31 @@ window.__openManualEntry = ()=>{
         <div class="help">Who this is with — vendor for expenses, customer for income. Optional.</div>
       </div>
       <div>
+        <label>Amount</label>
+        <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
+        <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
+      </div>
+      <div>
         <label>Description</label>
         <input type="text" id="je-desc" placeholder="e.g. Office supplies from Amazon, customer refund, paid credit card">
+        <div class="help">Optional, but useful for finding this entry later.</div>
       </div>
-      <div style="grid-column:1 / -1">
+      <div>
         <label>Matched with</label>
         <select id="je-other">${accountOptionList()}</select>
         <div class="help">The other side of the entry — the account that moved in the opposite direction. Defaults to your default cash account from Setup Wizard.</div>
       </div>
-      <div style="grid-column:1 / -1">
-        <label>Notes</label>
+      <div>
+        <label>Notes <span class="muted small">(internal only)</span></label>
         <textarea id="je-note" rows="2" placeholder="Optional internal note"></textarea>
+        <div class="help">Not shown in the GL table. Only visible when you open transaction details.</div>
       </div>
     </div>
     <div class="softwarn" style="margin-top:12px">This is a manual accounting adjustment. Most day-to-day entries should come from invoices, bills, payments, and statement imports.</div>
   `, [{Cancel:'closeModal()'}, {Save:'closeModal()'}]);
   // Expose renderer so the onchange above can call it
   window.__jeRenderBody = (t)=> render(t);
-  // Initial render with default type
-  setTimeout(()=>render(initialType), 0);
+  // No setTimeout needed: initial Category options are inlined in the template above.
 };
 window.__openAdd = (kind)=>{
   /* Round 8: Type is LOCKED in the wizard context (other options greyed out). Only the Categories section

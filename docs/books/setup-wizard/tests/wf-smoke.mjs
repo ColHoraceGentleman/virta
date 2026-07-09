@@ -619,15 +619,15 @@ check('(P1) Manual entry modal explains balanced ledger entry happens behind the
 check('(P1) Manual entry modal has only Save (no Save draft / Post entry split) (D65)', !/Save draft|Post entry/.test(manualEntryModal));
 // R18 type-picker-first
 const typePos = manualEntryModal.indexOf('id="je-type"');
-const accountPos = manualEntryModal.indexOf('id="je-account-row"');
+const accountPos = manualEntryModal.indexOf('id="je-account"');
 check('(R18) Type picker comes BEFORE the Account row in the manual-entry modal (D62 revised)', typePos > 0 && accountPos > 0 && typePos < accountPos, `typePos=${typePos} accountPos=${accountPos}`);
 check('(R18) Manual entry modal Type dropdown has 5 options: Expense, Income, Asset, Liability, Equity', /value="Expense"/.test(manualEntryModal) && /value="Income"/.test(manualEntryModal) && /value="Asset"/.test(manualEntryModal) && /value="Liability"/.test(manualEntryModal) && /value="Equity"/.test(manualEntryModal));
-check('(R18) Manual entry modal Amount label is just "Amount" (D64 revised R24: type-specific copy moved to helper text only)', manualEntryModal.includes('<label id="je-change-label">Amount</label>'));
+check('(R18) Manual entry modal Amount label is just "Amount" (D64 revised R24: type-specific copy moved to helper text only; R25: id="je-change-label" removed since label is no longer dynamic)', manualEntryModal.includes('<label>Amount</label>'));
 check('(R18) Manual entry modal initial helper copy: "You spent this much" / "You got a refund" (D64 Expense)', manualEntryModal.includes('You spent this much') && manualEntryModal.includes('You got a refund'));
 // Switch the Type to Liability and re-render, then assert label + helper copy updated
 window.__jeRenderBody('Liability');
 const liabilityBody = $('#modal').innerHTML;
-check('(R24) Switching Type to Liability keeps Amount label as "Amount" (R24: type-specific copy is only in helper text)', /<label id="je-change-label">Amount<\/label>/.test(liabilityBody));
+check('(R24) Switching Type to Liability keeps Amount label as "Amount" (R24: type-specific copy is only in helper text)', /<label>Amount<\/label>/.test(liabilityBody));
 check('(R24) Liability helper copy: "You paid it down" / "You took on more debt" (D64)', liabilityBody.includes('You paid it down') && liabilityBody.includes('You took on more debt'));
 // Verify the Account list is filtered to Liability accounts only
 const accountOptsHTML = (liabilityBody.match(/<select id="je-account">[\s\S]*?<\/select>/) || [''])[0];
@@ -636,17 +636,17 @@ check('(R18) Account list filtered to Liability only (D62)', dataTypeAttrs.lengt
 // Switch to Equity, verify helper copy updates
 window.__jeRenderBody('Equity');
 const equityBody = $('#modal').innerHTML;
-check('(R24) Switching Type to Equity keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(equityBody));
+check('(R24) Switching Type to Equity keeps Amount label as "Amount"', /<label>Amount<\/label>/.test(equityBody));
 check('(R24) Equity helper copy: "Owner took money out" / "Owner put money in" (D64)', equityBody.includes('Owner took money out') && equityBody.includes('Owner put money in'));
 // Switch to Income
 window.__jeRenderBody('Income');
 const incomeBody = $('#modal').innerHTML;
-check('(R24) Switching Type to Income keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(incomeBody));
+check('(R24) Switching Type to Income keeps Amount label as "Amount"', /<label>Amount<\/label>/.test(incomeBody));
 check('(R24) Income helper copy: "You earned this much" / "You had a reversal" (D64)', incomeBody.includes('You earned this much') && incomeBody.includes('You had a reversal'));
 // Switch to Asset
 window.__jeRenderBody('Asset');
 const assetBody = $('#modal').innerHTML;
-check('(R24) Switching Type to Asset keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(assetBody));
+check('(R24) Switching Type to Asset keeps Amount label as "Amount"', /<label>Amount<\/label>/.test(assetBody));
 check('(R24) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
 check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
 check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
