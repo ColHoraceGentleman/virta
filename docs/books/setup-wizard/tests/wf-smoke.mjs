@@ -613,12 +613,41 @@ check('(P1) Ledger page keeps accounting concepts behind the scenes', ledgerHtml
 window.__openManualEntry();
 const manualEntryModal = $('#modal').innerHTML;
 check('(P1) New manual entry opens "New entry" modal (D62)', manualEntryModal.includes('New entry'));
-check('(P1) Manual entry modal has Date, Account, Change, Description, Other account, Notes fields (D62)', ['Date','Account','Change','Description','Other account','Notes'].every(label => manualEntryModal.includes(label)));
+check('(P1) Manual entry modal has Date, Type, Account, Description, Other account, Notes fields (D62)', ['Date','Type','Account','Description','Other account','Notes'].every(label => manualEntryModal.includes(label)));
 check('(P1) Manual entry modal avoids debit/credit labels', !/>Debit</i.test(manualEntryModal) && !/>Credit</i.test(manualEntryModal) && !/Debit\s*\/\s*Credit/i.test(manualEntryModal));
 check('(P1) Manual entry modal explains balanced ledger entry happens behind the scenes', manualEntryModal.includes('balanced ledger entry behind the scenes'));
-check('(P1) Manual entry modal Sign convention copy: positive = up, negative = down (D63)', manualEntryModal.includes('positive = it went up') && manualEntryModal.includes('negative if it went down'));
 check('(P1) Manual entry modal has only Save (no Save draft / Post entry split) (D65)', !/Save draft|Post entry/.test(manualEntryModal));
-check('(P1) Manual entry modal has no Type picker (D62, D64: label adapts to picked Account type)', !/<label[^>]*>Type<\/label>/i.test(manualEntryModal) && !/Pick (a|an) (account )?type/i.test(manualEntryModal));
+// R18 type-picker-first
+const typePos = manualEntryModal.indexOf('id="je-type"');
+const accountPos = manualEntryModal.indexOf('id="je-account-row"');
+check('(R18) Type picker comes BEFORE the Account row in the manual-entry modal (D62 revised)', typePos > 0 && accountPos > 0 && typePos < accountPos, `typePos=${typePos} accountPos=${accountPos}`);
+check('(R18) Manual entry modal Type dropdown has 5 options: Expense, Income, Asset, Liability, Equity', /value="Expense"/.test(manualEntryModal) && /value="Income"/.test(manualEntryModal) && /value="Asset"/.test(manualEntryModal) && /value="Liability"/.test(manualEntryModal) && /value="Equity"/.test(manualEntryModal));
+check('(R18) Manual entry modal initial Change label is "Amount of Expense" (default Type = Expense, D64)', manualEntryModal.includes('Amount of Expense'));
+check('(R18) Manual entry modal initial helper copy: "You spent this much" / "You got a refund" (D64 Expense)', manualEntryModal.includes('You spent this much') && manualEntryModal.includes('You got a refund'));
+// Switch the Type to Liability and re-render, then assert label + helper copy updated
+window.__jeRenderBody('Liability');
+const liabilityBody = $('#modal').innerHTML;
+check('(R18) Switching Type to Liability updates Change label to "Change in the Liability" (D64)', liabilityBody.includes('Change in the Liability'));
+check('(R18) Liability helper copy: "You paid it down" / "You took on more debt" (D64)', liabilityBody.includes('You paid it down') && liabilityBody.includes('You took on more debt'));
+// Verify the Account list is filtered to Liability accounts only
+const accountOptsHTML = (liabilityBody.match(/<select id="je-account">[\s\S]*?<\/select>/) || [''])[0];
+const dataTypeAttrs = (accountOptsHTML.match(/data-type="[^"]+"/g) || []).map(s => s.match(/data-type="([^"]+)"/)[1]);
+check('(R18) Account list filtered to Liability only (D62)', dataTypeAttrs.length > 0 && dataTypeAttrs.every(t => t === 'Liability'), `types found: ${dataTypeAttrs.join(', ')}`);
+// Switch to Equity, verify "Change in Owner\'s Equity" + draw / contribute copy
+window.__jeRenderBody('Equity');
+const equityBody = $('#modal').innerHTML;
+check('(R18) Switching Type to Equity updates Change label to "Change in Owner\\\'s Equity" (D64)', /Change in Owner/.test(equityBody));
+check('(R18) Equity helper copy: "Owner took money out" / "Owner put money in" (D64)', equityBody.includes('Owner took money out') && equityBody.includes('Owner put money in'));
+// Switch to Income, verify "Amount of Income" + earned / reversal copy
+window.__jeRenderBody('Income');
+const incomeBody = $('#modal').innerHTML;
+check('(R18) Switching Type to Income updates Change label to "Amount of Income" (D64)', incomeBody.includes('Amount of Income'));
+check('(R18) Income helper copy: "You earned this much" / "You had a reversal" (D64)', incomeBody.includes('You earned this much') && incomeBody.includes('You had a reversal'));
+// Switch to Asset, verify "Change in the Asset" + up / down copy
+window.__jeRenderBody('Asset');
+const assetBody = $('#modal').innerHTML;
+check('(R18) Switching Type to Asset updates Change label to "Change in the Asset" (D64)', assetBody.includes('Change in the Asset'));
+check('(R18) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
 
 state.screen = 'mgmt';
 state.catFilter = 'all';

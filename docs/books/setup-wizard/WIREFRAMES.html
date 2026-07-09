@@ -291,7 +291,12 @@ function lineLabel(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_
 function lineShort(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?m.label:(id?id:'—');}
 function accountLabel(acct){return state.showNumbers ? `${acct.code}-${acct.name}` : acct.name;}
 function fmtAmount(v){const sign=v<0?'−':'';return sign+'$'+Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');}
-function accountOptionList(){return [...state.income,...state.expenses,...state.other].filter(a=>!a.system).map(a=>`<option value="${esc(a.code)}" data-type="${esc(a.type)}">${esc(accountLabel(a))}</option>`).join('');}
+function accountOptionList(opts){
+  const filterType = opts && opts.filterType;
+  let all = [...state.income,...state.expenses,...state.other].filter(a=>!a.system);
+  if(filterType) all = all.filter(a => a.type === filterType);
+  return all.map(a=>`<option value="${esc(a.code)}" data-type="${esc(a.type)}">${esc(accountLabel(a))}</option>`).join('');
+}
 function refreshBadge(){const b=$('#reviewBadge');if(!b) return; const n = state.reviewLaterTxnCount||0; if(n>0){ b.hidden=false; b.textContent = String(n); } else { b.hidden = true; }}
 function progressDots(steps,cur){return steps.map(s=>{const cls=s.n<cur?'done':(s.n===cur?'current':'');return `<span class="dot ${cls}"></span>${s.n<steps.length?`<span class="bar ${s.n<cur?'fill':''}"></span>`:''}`;}).join('');}
 function topbar(title,crumbs){return `<div class="topbar"><div><div class="crumbs">${crumbs.map(c=>`<span class="crumb">${esc(c)}</span>`).join(' ')}</div><h1>${esc(title)}</h1></div><div class="right small muted">Wireframe · click any step to advance</div></div>`;}
@@ -1010,36 +1015,57 @@ window.__openModal = (title, body, buttons) => {
 };
 window.closeModal = ()=>$('#modalBack').classList.remove('open');
 window.__openManualEntry = ()=>{
-  // v2 manual entry per D62-D66: Account + Change + Other account.
-  // Sign convention (D63): positive = picked Account went up; negative = it went down.
-  // Label adapts to picked Account's type (D64).
+  // v2 manual entry per D62-D66, R18: Type picker is FIRST.
+  // The user picks a type (Expense / Income / Asset / Liability / Equity),
+  // which (a) filters the Account dropdown to that type and (b) sets the
+  // Change label + helper copy to the right wording for that type.
+  // Sign convention (D63): positive = the picked Account went up; negative = it went down.
   // No drafts (D65). Single Save button.
-  const opts = accountOptionList();
-  const updateChangeLabel = ()=>{
-    const sel = document.getElementById('je-account');
-    const opt = sel && sel.options[sel.selectedIndex];
-    const t = opt ? opt.getAttribute('data-type') : 'Expense';
-    const labels = { Expense:'Amount', Income:'Amount', Asset:'Change in balance', Liability:'Change in balance', Equity:'Change' };
-    const lbl = document.getElementById('je-change-label');
-    if(lbl) lbl.textContent = labels[t] || 'Amount';
+  const typeOptions = ['Expense','Income','Asset','Liability','Equity'];
+  const accountOptionsFor = (type) => {
+    const all = accountOptionList({filterType: type});
+    return all;
   };
-  const onAccountChange = ()=>{ updateChangeLabel(); };
+  const labelsFor = (type) => {
+    return ({
+      Expense: {label:'Amount of Expense', pos:'You spent this much', neg:'You got a refund (or a negative expense)'},
+      Income:  {label:'Amount of Income',  pos:'You earned this much', neg:'You had a reversal'},
+      Asset:   {label:'Change in the Asset', pos:'The asset went up',    neg:'The asset went down'},
+      Liability:{label:'Change in the Liability', pos:'You paid it down', neg:'You took on more debt'},
+      Equity:  {label:'Change in Owner\'s Equity', pos:'Owner took money out', neg:'Owner put money in'},
+    })[type] || {label:'Amount', pos:'This account went up', neg:'This account went down'};
+  };
+  const render = (type) => {
+    const opts = accountOptionsFor(type);
+    const L = labelsFor(type);
+    document.getElementById('je-account-row').innerHTML = `
+      <label>Account</label>
+      <select id="je-account">${opts}</select>
+      <div class="help">Only ${type.toLowerCase()} accounts are shown. Pick the specific account that changed.</div>
+    `;
+    document.getElementById('je-change-label').textContent = L.label;
+    document.getElementById('je-change-help').textContent = `Positive = ${L.pos}. Negative = ${L.neg}.`;
+  };
+  const initialType = 'Expense';
   window.__openModal('New entry', `
-    <div class="infobox" style="margin-bottom:12px">Pick the account that changed, type the amount (positive = it went up, negative = it went down), and pick where the money came from or went to. The system handles the balanced ledger entry behind the scenes — no debits or credits to think about.</div>
+    <div class="infobox" style="margin-bottom:12px">Pick the type of account that changed, then the specific account, then type the amount. The system handles the balanced ledger entry behind the scenes — no debits or credits to think about.</div>
     <div style="display:grid;grid-template-columns:160px 1fr;gap:10px 12px;align-items:end">
       <div>
         <label>Date</label>
         <input type="date" id="je-date" value="2026-07-11">
       </div>
       <div style="grid-column:1 / -1">
-        <label>Account</label>
-        <select id="je-account" onchange="(${onAccountChange.toString()})()">${opts}</select>
-        <div class="help">The account that changed. Type a positive amount if it went up, negative if it went down.</div>
+        <label>Type</label>
+        <select id="je-type" onchange="window.__jeRenderBody(this.value)">
+          ${typeOptions.map(t => `<option value="${t}" ${t===initialType?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <div class="help">Pick the type first — it filters the Account list and sets the right language below.</div>
       </div>
+      <div style="grid-column:1 / -1" id="je-account-row"></div>
       <div>
-        <label id="je-change-label">Amount</label>
+        <label id="je-change-label">Amount of Expense</label>
         <input type="text" id="je-change" inputmode="decimal" placeholder="0.00" value="250.00">
-        <div class="help">Positive = this account went up. Negative = it went down.</div>
+        <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
       </div>
       <div>
         <label>Description</label>
@@ -1047,7 +1073,7 @@ window.__openManualEntry = ()=>{
       </div>
       <div style="grid-column:1 / -1">
         <label>Other account</label>
-        <select id="je-other">${opts}</select>
+        <select id="je-other">${accountOptionList()}</select>
         <div class="help">The other side of the entry. Defaults to your default cash account from Setup Wizard.</div>
       </div>
       <div style="grid-column:1 / -1">
@@ -1057,8 +1083,10 @@ window.__openManualEntry = ()=>{
     </div>
     <div class="softwarn" style="margin-top:12px">This is a manual accounting adjustment. Most day-to-day entries should come from invoices, bills, payments, and statement imports.</div>
   `, [{Cancel:'closeModal()'}, {Save:'closeModal()'}]);
-  // Set initial label based on first account's type.
-  setTimeout(updateChangeLabel, 0);
+  // Expose renderer so the onchange above can call it
+  window.__jeRenderBody = (t)=> render(t);
+  // Initial render with default type
+  setTimeout(()=>render(initialType), 0);
 };
 window.__openAdd = (kind)=>{
   /* Round 8: Type is LOCKED in the wizard context (other options greyed out). Only the Categories section
