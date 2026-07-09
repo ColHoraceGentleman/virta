@@ -743,5 +743,94 @@ if (accountCount.count === 0) {
   seedTx(SEED_ACCOUNTS);
 }
 
+// =====================================================================
+// Virta Books — Phase 1 + 2 GL + Audit Log Migration
+// Applied 2026-07-09. Source of truth: TASK-phase1-2-build.md +
+// docs/books/setup-wizard/SETUP_AND_CATEGORIES.md (D55/D59/D66/D68/etc).
+//
+// Hard rule: never DELETE or DROP existing rows. Add columns + new tables
+// only. All changes are idempotent (safe to run on every boot).
+//
+// Schema additions:
+//   accounts.is_hidden      — D55: user-facing hide flag.
+//   journal_entries.recon_status   — D59: 'empty' | 'in_progress' | 'reconciled'
+//   journal_entries.name    — vendor/customer display string (D62).
+//   journal_entries.notes   — internal-only Notes field (D62).
+//   journal_entries.amount  — denormalized |abs| for fast GL listing.
+//   journal_entries.category_account_id  — denormalized primary side of the pair.
+//   journal_entries.matched_account_id   — denormalized other side of the pair.
+//   audit_log               — D66: append-only log for GL mutations + clicks.
+//   account_balances        — cached balance snapshots (Phase 5+ consumer).
+// =====================================================================
+{
+  // accounts.is_hidden — D55 (Phase 1 v2 design decision). NULL→0 default.
+  const acctsCols = db.prepare('PRAGMA table_info(accounts)').all().map(c => c.name);
+  if (!acctsCols.includes('is_hidden')) {
+    try { db.exec('ALTER TABLE accounts ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0'); } catch { /* ignore */ }
+  }
+
+  // journal_entries extensions. ALTER TABLE is non-breaking on existing rows;
+  // new columns get their declared defaults. Existing import-driven rows just
+  // get the defaults (recon_status='empty', amount=NULL, name=NULL, notes=NULL,
+  // category/matched_account_id=NULL).
+  const jeCols = db.prepare('PRAGMA table_info(journal_entries)').all().map(c => c.name);
+  if (!jeCols.includes('recon_status')) {
+    try { db.exec(`ALTER TABLE journal_entries ADD COLUMN recon_status TEXT NOT NULL DEFAULT 'empty' CHECK (recon_status IN ('empty','in_progress','reconciled'))`); } catch { /* ignore */ }
+  }
+  if (!jeCols.includes('name')) {
+    try { db.exec('ALTER TABLE journal_entries ADD COLUMN name TEXT'); } catch { /* ignore */ }
+  }
+  if (!jeCols.includes('notes')) {
+    try { db.exec('ALTER TABLE journal_entries ADD COLUMN notes TEXT'); } catch { /* ignore */ }
+  }
+  if (!jeCols.includes('amount')) {
+    try { db.exec('ALTER TABLE journal_entries ADD COLUMN amount REAL'); } catch { /* ignore */ }
+  }
+  if (!jeCols.includes('category_account_id')) {
+    try { db.exec('ALTER TABLE journal_entries ADD COLUMN category_account_id TEXT REFERENCES accounts(id)'); } catch { /* ignore */ }
+  }
+  if (!jeCols.includes('matched_account_id')) {
+    try { db.exec('ALTER TABLE journal_entries ADD COLUMN matched_account_id TEXT REFERENCES accounts(id)'); } catch { /* ignore */ }
+  }
+
+  // Index for fast GL listing (filter by date).
+  safeExec('CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(txn_date)');
+  safeExec('CREATE INDEX IF NOT EXISTS idx_journal_entries_category ON journal_entries(category_account_id)');
+}
+
+// audit_log — D66. Append-only log written on every journal-entry mutation
+// (create / update / delete) and viewable via click-to-reveal (D63 audit policy).
+// v1 audit policy: 'user' actor only (no multi-user auth). When multi-user
+// ships, the `actor` field captures the user id directly.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    event       TEXT NOT NULL CHECK (event IN ('created','updated','deleted','viewed')),
+    actor       TEXT NOT NULL DEFAULT 'user',
+    occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+    source      TEXT NOT NULL CHECK (source IN ('journal_entry','transaction','account','reconciliation')),
+    source_id   TEXT NOT NULL,
+    before_json TEXT,
+    after_json  TEXT,
+    summary     TEXT NOT NULL
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_audit_log_source  ON audit_log(source, source_id, occurred_at DESC)');
+safeExec('CREATE INDEX IF NOT EXISTS idx_audit_log_occurred ON audit_log(occurred_at DESC)');
+
+// account_balances — cached balance snapshots, written when a journal entry
+// posts. Phase 5+ (Reports, Dashboard tiles) read this. Composite PK so we
+// can keep a full audit trail of balances over time without losing history.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS account_balances (
+    account_id  TEXT NOT NULL REFERENCES accounts(id),
+    as_of_date  TEXT NOT NULL,
+    balance     REAL NOT NULL,
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (account_id, as_of_date)
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_account_balances_as_of ON account_balances(as_of_date)');
+
 export default db;
 export { generateId };

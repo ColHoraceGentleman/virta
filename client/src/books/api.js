@@ -141,6 +141,35 @@ export const booksApi = {
   // multi-key response: { data: [...rows...], as_of: "...", totals: {...} }.
   // The auto-unwrap helper would return just the rows array, leaving
   // data.as_of / data.totals undefined and crashing the component.
+  // Phase 1 + 2: General Ledger (journal entries)
+  // listJournalEntries returns { data: [...rows], total, limit, offset } — we
+  // bypass request()'s auto-unwrap so the caller gets the meta keys intact,
+  // matching the arAging() pattern above.
+  listJournalEntries: async (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.date_from) qs.set('date_from', params.date_from);
+    if (params.date_to) qs.set('date_to', params.date_to);
+    if (params.category_id) qs.set('category_id', params.category_id);
+    if (params.name_q) qs.set('name_q', params.name_q);
+    if (params.limit) qs.set('limit', params.limit);
+    if (params.offset) qs.set('offset', params.offset);
+    const q = qs.toString();
+    const res = await fetch(`${BASE}/journal/entries${q ? `?${q}` : ''}`);
+    const json = await res.json();
+    if (!res.ok) {
+      const err = new Error(json.error || `HTTP ${res.status}`);
+      err.code = json.code;
+      err.status = res.status;
+      throw err;
+    }
+    return json;
+  },
+  // Note: returns { data: entry, total, limit, offset } — we expose the wrapper shape.
+  // Use this and unpack at the call site.
+  createJournalEntry: (data) => request('POST', '/journal/entries', data),
+  getJournalEntry: (id) => request('GET', `/journal/entries/${id}`),
+  getJournalAudit: (id) => request('GET', `/journal/entries/${id}/audit`),
+
   arAging: async (asOf) => {
     const path = `/reports/ar-aging${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`;
     const res = await fetch(`${BASE}${path}`);

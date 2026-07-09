@@ -16,6 +16,7 @@ import SettingsSourceMappings from './SettingsSourceMappings.jsx';
 import SettingsVendorRules from './SettingsVendorRules.jsx';
 import Reports from './Reports.jsx';
 import Reconcile from './Reconcile.jsx';
+import Transactions from './Transactions.jsx';
 import { booksApi } from './api.js';
 
 // Tiny client-side router. Reads window.location.pathname, listens to popstate.
@@ -75,12 +76,13 @@ function BooksNav({ path, navigate }) {
         {link('/books/customers',      'Customers',  '👥')}
         {link('/books/import',         'Import',     '📥')}
         {link('/books/categorize',     'Categorize', '🗂️')}
+        {link('/books/transactions',   'Transactions', '📒')}
         {link('/books/reports',        'Reports',    '📈')}
         {link('/books/reconcile',      'Reconcile',  '✅')}
         {link('/books/settings/accounts', 'Settings', '⚙️')}
       </div>
       <div className="text-xs text-slate-400">
-        <span className="opacity-60">Phase E.1 · Reconciliation</span>
+        <span className="opacity-60">Phase 2 · GL + Manual Entry</span>
       </div>
     </div>
   );
@@ -173,6 +175,8 @@ export default function BooksShell() {
     page = <SettingsVendorRules navigate={navigate} />;
   } else if (path === '/books/reports' || path === '/books/reports/') {
     page = <Reports navigate={navigate} />;
+  } else if (path === '/books/transactions' || path === '/books/transactions/') {
+    page = <Transactions navigate={navigate} />;
   } else if (path === '/books/reconcile' || path === '/books/reconcile/') {
     page = <Reconcile navigate={navigate} />;
   } else if (path.startsWith('/books/reconcile/')) {

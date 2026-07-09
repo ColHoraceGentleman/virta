@@ -24,6 +24,7 @@ import booksVendorRulesRouter from './routes/books/vendor-rules.js';
 import booksSourceMappingsRouter from './routes/books/source-mappings.js';
 import booksReportsRouter from './routes/books/reports.js';
 import booksReconcileRouter from './routes/books/reconcile.js';
+import booksJournalRouter from './routes/books/journal.js';
 import db from './db.js';
 import { startOverdueCron } from './services/overdueCron.js';
 
@@ -70,6 +71,7 @@ app.use('/api/v1/books/vendor-rules', booksVendorRulesRouter);
 app.use('/api/v1/books/source-mappings', booksSourceMappingsRouter);
 app.use('/api/v1/books/reports', booksReportsRouter);
 app.use('/api/v1/books/reconcile', booksReconcileRouter);
+app.use('/api/v1/books/journal', booksJournalRouter);
 
 // Health check for books
 app.get('/api/v1/books/health', (req, res) => {
