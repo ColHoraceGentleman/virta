@@ -160,7 +160,6 @@
       <a href="#" data-screen="dashboard">🏠 Dashboard</a>
       <a href="#" data-screen="invoices">🧾 Invoices</a>
       <a href="#" data-screen="transactions">💸 Transactions</a>
-      <a href="#" data-screen="ledger">📒 General Ledger</a>
       <a href="#" onclick="state.screen='mgmt';state.catFilter='all';render()"><span>📂 Categories</span><span class="review-pill" id="reviewBadge" hidden>0</span></a>
       <div class="section">Setup</div>
       <a href="#" data-screen="setup">🚀 Run setup wizard</a>
@@ -1273,7 +1272,7 @@ function renderLedger(){
     <td>${esc(accountLabel(r.matched))}</td>
     <td>${r.recon==='reconciled'?'<span class="pill system">Reconciled</span>':r.recon==='in-progress'?'<span class="pill warn">In progress</span>':'<span class="muted">—</span>'}</td>
   </tr>`).join('');
-  $('#root').innerHTML = topbar('General Ledger',['Books','General Ledger']) + `
+  $('#root').innerHTML = topbar('Transactions',['Books','Transactions']) + `
     <div class="ledger-summary">
       <div class="metric"><div class="label">Entries this month</div><div class="value">${LEDGER_ROWS.length}</div></div>
       <div class="metric"><div class="label">Unbalanced entries</div><div class="value">0</div></div>
@@ -1406,6 +1405,7 @@ function render(){
   if(s==='mgmt') return renderMgmt();
   if(s==='dashboard') return renderDashboard();
   if(s==='ledger') return renderLedger();
+  if(s==='transactions') return renderLedger(); /* round 16: GL merged into Transactions nav */
   if(s==='settings') return renderSettings();
   renderSettings();
 }

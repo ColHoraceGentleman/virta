@@ -600,7 +600,7 @@ check('(R9) Liability row (Business Credit Card) shows a negative balance with m
 state.screen = 'ledger';
 window.render();
 const ledgerHtml = $('#root').innerHTML;
-check('(P1) Sidebar includes General Ledger link', readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('data-screen="ledger"') && readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('General Ledger'));
+check('(P1) Sidebar includes Transactions link (was General Ledger; merged in round 16)', readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('data-screen="transactions"') && readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('💸 Transactions'));
 check('(P1) Sidebar Categories is top-level, not nested under a Categories section', !readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('<div class="section">Categories</div>') && !readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/WIREFRAMES.html', 'utf8').includes('class="sub"><span>• Categories'));
 check('(P1) General Ledger page renders as a dedicated wireframe route', ledgerHtml.includes('Every money event, balanced behind the scenes'));
 check('(P1) Ledger page explains automatic entries from invoices/bills/payments/imports/journals', ledgerHtml.includes('invoices, bills, payments, bank imports, and manual journals'));
@@ -641,6 +641,8 @@ check('(P1) mgmtUnifiedRow uses is_hidden for Hide/Show toggle (D55)', /item\.is
 check('(P1) No "subtype" field anywhere in wireframe JS (D52: Schedule C line is the implicit categorization)', !/\bsubtype\b/i.test(scriptSrc));
 check('(P1) No "COGS" or "Cost of Goods" UI text in wireframe (D53: COGS is v3, schema-only reserved range)', !/cost of goods|\bCOGS\b/i.test(scriptSrc));
 check('(P1) No "close fiscal year" or year-end-close UI anywhere (D56: no explicit close, auto-flows to Equity)', !/close.{0,3}(fiscal )?year/i.test(scriptSrc));
+check('(R16) Sidebar no longer has a separate General Ledger link (merged into Transactions)', !scriptSrc.includes('data-screen="ledger"') && !scriptSrc.includes('General Ledger'));
+check('(R16) data-screen="transactions" routes to renderLedger()', /if\(s==='transactions'\)\s+return renderLedger/.test(scriptSrc));
 
 // --- Round 15 (Phase 1 cleanup) ---
 const specSrc = readFileSync('/Users/colonelhoracegentleman/clawd/projects/task-manager/docs/books/setup-wizard/SETUP_AND_CATEGORIES.md', 'utf8');

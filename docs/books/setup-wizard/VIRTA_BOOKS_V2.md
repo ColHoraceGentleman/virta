@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | Wireframe | `WIREFRAMES.html` | 1425 | ~88 KB | Single-file SPA. Open in browser, click around. Includes General Ledger page (Phase 1). |
 | Spec | `SETUP_AND_CATEGORIES.md` | 868 | ~56 KB | 67 decisions (D1–D67), 38 behavior IDs in §13, §10A formal schema, GL columns locked (D59). |
-| Smoke test | `tests/wf-smoke.mjs` (in repo) | 666 | — | **216/216 passing** as of round 15 (Phase 1 cleanup, 2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
+| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~670 | — | **218/218 passing** as of round 16 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
 
 **Feedback archive** in same folder:
 - `FEEDBACK-wireframes-2026-07-08.md` (round 1)
@@ -131,4 +131,5 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 | 2026-07-08 17:15 MDT | v2 snapshot created. Baseline = round 1–14 wireframe close-out. | `b6b4d05` |
 | 2026-07-08 17:17 MDT | Naming clarified: everything outside the v2 wireframe (live built app + backlog) is collectively **v1**. | `5034b43` |
 | 2026-07-08 23:05 MDT | Phase 1 design complete (D51–D67, §10A, GL skeleton, D62 manual-entry modal). Wireframe + spec updated; smoke test 191/191 (pre-cleanup). | (uncommitted) |
-| 2026-07-09 10:38 MDT | Phase 1 cleanup (round 15): spec dedupe of D29–D32/D43–D49; wireframe removed `state.activeTab` + dead `catFilter='revenue'/'ale'` router; smoke test moved into repo, 2 stale D61-assertions fixed + 11 new D62/D63/D64/D65 assertions + 11 dedupe/cleanup assertions. Smoke 216/216. | (pending this commit) |
+| 2026-07-09 10:38 MDT | Phase 1 cleanup (round 15): spec dedupe of D29–D32/D43–D49; wireframe removed `state.activeTab` + dead `catFilter='revenue'/'ale'` router; smoke test moved into repo, 2 stale D61-assertions fixed + 11 new D62/D63/D64/D65 assertions + 11 dedupe/cleanup assertions. Smoke 216/216. | `23b2469` |
+| 2026-07-09 11:10 MDT | Round 16: sidebar **General Ledger** link renamed to **Transactions** (D68). Functionally unchanged — `renderLedger()` still backs the page; only the user-facing nav label changed. Smoke 218/218. | (pending) |
