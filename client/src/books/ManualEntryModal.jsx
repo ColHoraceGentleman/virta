@@ -20,7 +20,11 @@
 // Props:
 //   isOpen            — boolean controlling visibility
 //   onClose           — () => void
-//   onPosted(entry)   — called after every successful post (for both Save and Save+new)
+//   onPosted(entry, { keepOpen })
+//                      — called after every successful post. The second arg
+//                        tells the parent which button was clicked, so the
+//                        parent can choose to keep the modal open on
+//                        "Save and new" (D71) instead of always closing.
 //   defaultMatchedAccountId — optional override (Settings → default cash account).
 //                            Falls back to the first asset account on mount.
 import { useEffect, useMemo, useState, useRef } from 'react';
@@ -119,8 +123,14 @@ export default function ManualEntryModal({ isOpen, onClose, onPosted, defaultMat
   if (!isOpen) return null;
 
   function resetForm() {
-    setType('Expense');
-    setDate(todayISO());
+    // D71: Save and new KEEPS Type and Date at their current values.
+    // (The wireframe's canonical __jeSave(true) — WIREFRAMES.html ~1169 — only
+    // clears je-change/je-name/je-desc/je-other/je-note; it never touches Type
+    // or Date. The whole point is fast sequential entry, e.g. five Office
+    // Supplies expenses without re-picking Type/Date each time.)
+    // We also collapse the optional Description/Notes panels back to their
+    // "+ Add X" links, clear the error, and re-pick the default Category for
+    // the (now-unchanged) Type. The Matched-with default is re-applied too.
     setName('');
     setAmount('');
     setDescription('');
@@ -128,9 +138,8 @@ export default function ManualEntryModal({ isOpen, onClose, onPosted, defaultMat
     setShowDescription(false);
     setShowNotes(false);
     setError('');
-    // Re-pick defaults for category/matched.
     if (accounts.length) {
-      const t = 'expense';
+      const t = type.toLowerCase();  // current type — preserved per D71
       setCategoryId(accounts.find(a => a.account_type === t)?.id || '');
       setMatchedId(defaultMatchedAccountId
         || accounts.find(a => a.account_type === 'asset' && /checking/i.test(a.name))?.id
@@ -167,7 +176,9 @@ export default function ManualEntryModal({ isOpen, onClose, onPosted, defaultMat
         notes: notes.trim() || undefined,
       };
       const created = await booksApi.createJournalEntry(payload);
-      if (onPosted) onPosted(created);
+      // Tell the parent *before* resetting/closing so it can refresh the
+      // underlying list and decide whether to keep the modal open.
+      if (onPosted) onPosted(created, { keepOpen: !!keepOpen });
       if (keepOpen) {
         resetForm();
       } else {

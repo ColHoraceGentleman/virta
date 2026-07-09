@@ -16,6 +16,7 @@ import {
   listEntries,
   getEntry,
   getEntryWithAudit,
+  deleteEntry,
 } from '../../services/journalService.js';
 import db from '../../db.js';
 
@@ -41,8 +42,12 @@ router.post('/entries', (req, res) => {
     res.json({ data: entry });
   } catch (err) {
     // Map common validation errors to 400 with a stable code; everything else 500.
+    // NIT-3 fix: include "not found" so client-supplied bad account ids
+    // (e.g. stale dropdown after an account was deleted) return 400
+    // VALIDATION_ERROR instead of 500 SERVER_ERROR. These are user-input
+    // errors, not server faults.
     const msg = String(err && err.message || '');
-    const isValidation = /required|invalid|unknown|must be|must match|Type must|non-zero|under \$0\.005|different/i.test(msg);
+    const isValidation = /required|invalid|unknown|must be|must match|Type must|non-zero|under \$0\.005|different|not found/i.test(msg);
     if (isValidation) {
       return res.status(400).json({ error: msg, code: 'VALIDATION_ERROR' });
     }
@@ -52,8 +57,9 @@ router.post('/entries', (req, res) => {
 });
 
 // GET /journal/entries?date_from=&date_to=&category_id=&name_q=&limit=&offset=
-// Powers the Transactions (GL) page. Filter is client-side-of-the-API.
-// The match is inclusive on both date bounds.
+// Powers the Transactions (GL) page. Filtering is applied SERVER-SIDE in
+// SQL (date range, category, name substring) with a 500-row cap, not in
+// the browser. The match is inclusive on both date bounds.
 router.get('/entries', (req, res) => {
   try {
     const result = listEntries({
@@ -105,15 +111,22 @@ router.get('/entries/:id/audit', (req, res) => {
 // DELETE /journal/entries/:id
 // Removes a journal entry by ID. Used by the demo cleanup + future admin tools.
 // Lines cascade via FK; audit rows stay (history) but no longer reference a live entry.
+//
+// D66 audit policy: writes an audit_log row with event='deleted' and
+// before_json = the full entry + lines snapshot. The actual delete + audit
+// write happens in journalService.deleteEntry() so it's testable from
+// Node.js directly (no HTTP round-trip required for unit tests).
 router.delete('/entries/:id', (req, res) => {
   try {
-    const existing = db.prepare(`SELECT id FROM journal_entries WHERE id = ?`).get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Journal entry not found', code: 'NOT_FOUND' });
-    db.prepare(`DELETE FROM journal_entries WHERE id = ?`).run(req.params.id);
+    deleteEntry(req.params.id);
     res.json({ data: { success: true, id: req.params.id } });
   } catch (err) {
+    const msg = String(err && err.message || '');
+    if (/not found/i.test(msg)) {
+      return res.status(404).json({ error: msg, code: 'NOT_FOUND' });
+    }
     console.error('[Books/Journal] delete failed', err);
-    res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
+    res.status(500).json({ error: msg, code: 'SERVER_ERROR' });
   }
 });
 

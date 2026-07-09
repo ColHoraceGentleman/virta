@@ -112,6 +112,21 @@ for id in "$ENTRY_ID" "$ENTRY2"; do
 done
 ok "Cleanup: removed smoke-test entries" "true" ""
 
+# 13. SIG-3: DELETE handler writes an audit_log row (D66). Re-create one entry,
+# then delete it via the route, then check the audit endpoint surfaces a
+# 'deleted' event for it.
+RESP=$(req POST /api/v1/books/journal/entries "{\"txn_date\":\"2026-07-09\",\"type\":\"expense\",\"category_account_id\":\"$ACCT_6010\",\"matched_account_id\":\"$ACCT_1000\",\"amount\":3.21,\"name\":\"SIG3 Smoke\"}")
+ENTRY3=$(echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('data',{}).get('id',''))")
+ok "SIG-3 prep: created entry for delete-audit test" "$([ -n "$ENTRY3" ] && echo true || echo false)" "$ENTRY3"
+# Delete via the route.
+req DELETE "/api/v1/books/journal/entries/$ENTRY3" > /dev/null
+# Fetch the audit log for the deleted entry id (still queryable — soft ref).
+RESP=$(req GET "/api/v1/books/journal/entries/$ENTRY3/audit")
+EVENTS=$(echo "$RESP" | python3 -c "import json,sys; rows=json.load(sys.stdin)['data']; print(','.join(r['event'] for r in rows))")
+ok "SIG-3: DELETE wrote audit row with event=deleted" \
+  "$(echo "$EVENTS" | grep -q 'deleted' && echo true || echo false)" \
+  "events=$EVENTS"
+
 echo
 echo "Passed: $PASS, Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

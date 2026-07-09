@@ -365,7 +365,11 @@ export default function Transactions({ navigate }) {
       <ManualEntryModal
         isOpen={showManualEntry}
         onClose={() => setShowManualEntry(false)}
-        onPosted={() => { setShowManualEntry(false); loadEntries(); }}
+        onPosted={(entry, { keepOpen } = {}) => {
+          // D71: Save and new must keep the modal open. Only close on Save.
+          if (!keepOpen) setShowManualEntry(false);
+          loadEntries();
+        }}
         defaultMatchedAccountId={accounts.find(a => a.account_type === 'asset' && /checking/i.test(a.name))?.id || ''}
       />
     </div>

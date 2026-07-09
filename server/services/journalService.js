@@ -7,11 +7,20 @@
 //
 // Sign convention (D63, D64, D70):
 //   The user thinks in *amount* with a sign:
-//     positive = the picked Category "went up"
-//     negative = the picked Category "went down"
-//   We convert the sign into a debit/credit pair based on the Category's normal balance:
-//     Normal-debit accounts (asset, expense) → +amount means debit on Category
-//     Normal-credit accounts (liability, equity, income) → +amount means credit on Category
+//     positive = the picked Category "went up" (or, for liability/equity, "went down")
+//     negative = the picked Category "went down" (or, for liability/equity, "went up")
+//   The D64 helper copy spells this out per type:
+//     Expense   "Positive = You spent this much"
+//     Income    "Positive = You earned this much"
+//     Asset     "Positive = The asset went up"
+//     Liability "Positive = You paid it down"     ← credit-normal account, positive = DECREASE
+//     Equity    "Positive = Owner took money out" ← credit-normal account, positive = DECREASE
+//   We convert the sign into a debit/credit pair via the CATEGORY_POLARITY table
+//   below — Income's "positive = up" maps to credit (its normal-credit side),
+//   but Liability/Equity's "positive = down" maps to debit (the opposite of their
+//   normal-credit side). A blanket "credit-normal means +amount credits the
+//   category" rule is correct only for Income, and was previously wrong for
+//   Liability/Equity (BLOCKER-1 in the Phase 1+2 review).
 //   The Matched-with account always takes the opposite side.
 //
 // Balanced-entry guarantee:
@@ -43,6 +52,23 @@ const NORMAL_BALANCE = {
 export function normalBalanceOf(accountType) {
   return NORMAL_BALANCE[accountType] || null;
 }
+
+// account_type → direction of the *sign* on the Category line in the ledger.
+//   'up_is_debit'  → positive amount debits the category (asset, expense)
+//   'up_is_credit' → positive amount credits the category (income)
+//   'down_is_debit' → positive amount DEBITS the category because positive
+//                     means a decrease (liability, equity). For these accounts
+//                     a positive amount should reduce the balance, and the
+//                     reducing side on a credit-normal account is a debit.
+// Used by createEntry() to derive `categorySide` from the user's signed amount.
+// See comment block at top of file for the per-type D64 rationale.
+const CATEGORY_POLARITY = {
+  asset:     'up_is_debit',
+  expense:   'up_is_debit',
+  income:    'up_is_credit',
+  liability: 'down_is_debit',
+  equity:    'down_is_debit',
+};
 
 // =====================================================================
 // createEntry({ txn_date, type, category_account_id, matched_account_id,
@@ -92,10 +118,6 @@ export function createEntry({
   }
 
   // Validate the accounts exist & the type matches the category.
-  // Build canonical lowercase form for internal use.
-  const TYPE_NORM = typeLower;
-  void TYPE_NORM;
-
   const category = db.prepare(
     `SELECT id, code, name, account_type FROM accounts WHERE id = ?`
   ).get(category_account_id);
@@ -112,34 +134,38 @@ export function createEntry({
   // --- Balance computation (the hard part) ---
   //
   // userAmount    = signed number from modal (sign = "did category go up?")
-  // sideOf(amount) for category = debit if category's type has normal-debit,
-  //                          else credit.
+  //                 — or, for liability/equity, "did category go down?" (D64)
+  // sideOf(amount) for category = depends on the account type's polarity.
   //
   // The Matched-with account gets the OPPOSITE side.
   //
-  // We translate via sign convention:
-  //   debit balance types (asset, expense):
-  //     amount > 0 → debit category, credit matched
-  //     amount < 0 → credit category, debit matched
-  //   credit balance types (liability, equity, income):
-  //     amount > 0 → credit category, debit matched
-  //     amount < 0 → debit category, credit matched
+  // Polarity table (see CATEGORY_POLARITY above for the full comment):
+  //   asset     up_is_debit   → +amount debit,  -amount credit
+  //   expense   up_is_debit   → +amount debit,  -amount credit
+  //   income    up_is_credit  → +amount credit, -amount debit
+  //   liability down_is_debit → +amount debit,  -amount credit  (positive = paid down)
+  //   equity    down_is_debit → +amount debit,  -amount credit  (positive = owner draw)
   //
   // In every case: sum(debit) === sum(credit) === absAmount. The two-line
   // entry is always balanced by construction.
 
-  const normalBalance = normalBalanceOf(typeLower);
-  if (!normalBalance) {
+  const polarity = CATEGORY_POLARITY[typeLower];
+  if (!polarity) {
     throw new Error(`Unknown account type "${type}"`);
   }
-  const categoryGoesUp = numericAmount > 0;
-  // categorySide: which side of the ledger the category is on
-  // (debit if (normal-debit AND goes up) OR (normal-credit AND goes down))
-  const categorySide =
-    (normalBalance === 'debit' && categoryGoesUp) ||
-    (normalBalance === 'credit' && !categoryGoesUp)
-      ? 'debit'
-      : 'credit';
+  const amountIsPositive = numericAmount > 0;
+  // categorySide: which side of the ledger the category is on, given the
+  // user's signed amount and the category account's polarity.
+  let categorySide;
+  if (polarity === 'up_is_debit') {
+    categorySide = amountIsPositive ? 'debit' : 'credit';
+  } else if (polarity === 'up_is_credit') {
+    categorySide = amountIsPositive ? 'credit' : 'debit';
+  } else {
+    // 'down_is_debit' (liability, equity): positive = down, so positive → debit
+    // (the reducing side for a credit-normal account).
+    categorySide = amountIsPositive ? 'debit' : 'credit';
+  }
   const matchedSide = categorySide === 'debit' ? 'credit' : 'debit';
 
   const categoryDebit = categorySide === 'debit' ? absAmount : 0;
@@ -161,7 +187,10 @@ export function createEntry({
     entry: {
       id: entryId,
       txn_date,
-      description: descriptionText,
+      // NIT-2: persist '' (not a synthetic fallback) when the user
+      // leaves Description blank. Schema is NOT NULL, so '' is the
+      // closest equivalent to NULL; the GL table renders it as empty.
+      description: descriptionText || '',
       source: 'manual',
       name: nameText || null,
       notes: notesText || null,
@@ -205,6 +234,12 @@ export function createEntry({
     // Insert header. source='manual' (existing CHECK value) — covers all manual
     // posting flows. We tag name/notes/amount/category/matched on the header
     // so the GL listing can render without joining journal_lines for each row.
+    //
+    // NIT-2 fix: when the user leaves Description blank, we write ''
+    // (empty string), not a synthetic "Manual entry: <category>" fallback.
+    // The schema declares description NOT NULL, so we can't use NULL without
+    // a migration; '' renders the same in the GL table (empty cell) and is
+    // still distinguishable from real user-authored text in the API.
     db.prepare(`
       INSERT INTO journal_entries
         (id, txn_date, description, source, name, notes, amount,
@@ -214,7 +249,7 @@ export function createEntry({
     `).run(
       entryId,
       txn_date,
-      descriptionText || `Manual entry: ${category.name}`,
+      descriptionText || '',
       nameText || null,
       notesText || null,
       absAmount,
@@ -229,27 +264,17 @@ export function createEntry({
     insertLine.run(lineIds.category, entryId, category_account_id, categoryDebit, categoryCredit, 0);
     insertLine.run(lineIds.matched,  entryId, matched_account_id,  matchedDebit,  matchedCredit,  1);
 
-    // Update cached balance snapshot for both accounts. The snapshot stores
-    // the cumulative running balance at as_of_date = txn_date, computed from
-    // ALL journal lines (not just this one). It's O(N) per insert but trivial
-    // for Phase 1+2; Phase 5+ Reports will do incremental.
-    const upsertBalance = db.prepare(`
-      INSERT INTO account_balances (account_id, as_of_date, balance, updated_at)
-      VALUES (?, ?, ?, datetime('now'))
-      ON CONFLICT(account_id, as_of_date) DO UPDATE SET
-        balance = excluded.balance,
-        updated_at = excluded.updated_at
-    `);
-    const balanceAt = db.prepare(`
-      SELECT COALESCE(SUM(jl.debit - jl.credit), 0) AS bal
-      FROM journal_lines jl
-      JOIN journal_entries je ON je.id = jl.entry_id
-      WHERE jl.account_id = ? AND je.txn_date <= ?
-    `);
-    for (const acctId of [category_account_id, matched_account_id]) {
-      const bal = balanceAt.get(acctId, txn_date).bal;
-      upsertBalance.run(acctId, txn_date, bal);
-    }
+    // NOTE: account_balances was previously updated here, but the dated-
+    // snapshot design had a known staleness bug (Wren's Phase 1+2 review,
+    // SIG-2): backdated entries only rewrote snapshots at their own date,
+    // leaving every later date stale; deletes left the snapshot in place.
+    // Since Phase 1+2 has no consumer for account_balances, the decision
+    // (recorded here so Phase 5 doesn't reintroduce the bug) is to NOT write
+    // any snapshots from this service. Balances are derived at query time
+    // by summing journal_lines (the source of truth). The account_balances
+    // table is left in place but empty; Phase 5 should design its own cache
+    // when there's an actual consumer, accounting for backdating + deletes
+    // up front.
 
     // Write the audit row.
     db.prepare(`
@@ -288,6 +313,52 @@ export function getEntry(id) {
   `).all(id);
 
   return { ...entry, lines };
+}
+
+// =====================================================================
+// deleteEntry(id) — removes a journal entry by ID and writes the audit row
+// (D66). FK CASCADE removes the journal_lines. Returns true on success,
+// throws if the entry doesn't exist. Audit log row survives the delete
+// (source_id is a soft reference, not a FK, by design).
+// =====================================================================
+export function deleteEntry(id) {
+  const existing = db.prepare(`SELECT id FROM journal_entries WHERE id = ?`).get(id);
+  if (!existing) throw new Error('Journal entry not found');
+
+  // Capture full pre-delete snapshot for the audit log.
+  const entry = db.prepare(`
+    SELECT je.*,
+           cat.code AS category_code, cat.name AS category_name, cat.account_type AS category_account_type,
+           mtc.code  AS matched_code,  mtc.name  AS matched_name,  mtc.account_type AS matched_account_type
+    FROM journal_entries je
+    LEFT JOIN accounts cat ON cat.id = je.category_account_id
+    LEFT JOIN accounts mtc ON mtc.id = je.matched_account_id
+    WHERE je.id = ?
+  `).get(id);
+  const lines = db.prepare(`
+    SELECT jl.*, a.code AS account_code, a.name AS account_name, a.account_type
+    FROM journal_lines jl
+    LEFT JOIN accounts a ON a.id = jl.account_id
+    WHERE jl.entry_id = ?
+    ORDER BY jl.position ASC, jl.id ASC
+  `).all(id);
+
+  const beforeSnapshot = { entry, lines };
+  const beforeJson = JSON.stringify(beforeSnapshot);
+  const summary = `Deleted journal entry on ${entry.txn_date}: ` +
+    `${entry.category_code} ${entry.category_name} $${Number(entry.amount || 0).toFixed(2)} ` +
+    `matched with ${entry.matched_code} ${entry.matched_name}` +
+    (entry.name ? ` · with ${entry.name}` : '');
+
+  const tx = db.transaction(() => {
+    db.prepare(`DELETE FROM journal_entries WHERE id = ?`).run(id);
+    db.prepare(`
+      INSERT INTO audit_log (event, actor, source, source_id, before_json, after_json, summary)
+      VALUES ('deleted', 'user', 'journal_entry', ?, ?, NULL, ?)
+    `).run(id, beforeJson, summary);
+  });
+  tx();
+  return true;
 }
 
 // =====================================================================
@@ -352,7 +423,7 @@ export function listEntries(filter = {}) {
   }
   // Only show manually-posted entries + transaction_import entries in the GL.
   // (Phase 2: this is "everything in the GL"; Phase 4 will add invoice_payment.)
-  where.push(`je.source IN ('manual_entry','manual','transaction_import')`);
+  where.push(`je.source IN ('manual','transaction_import')`);
 
   const whereClause = 'WHERE ' + where.join(' AND ');
 

@@ -17,6 +17,7 @@ import {
   createEntry,
   listEntries,
   normalBalanceOf,
+  deleteEntry,
 } from '../services/journalService.js';
 
 // Clean up any entries this test created in previous runs. This lets the
@@ -27,7 +28,7 @@ import {
   // The entries we create are all 'manual' source with category_account_id
   // pointing at one of the seeded test accounts. Match by txn_date for our
   // specific test date so we don't touch user data.
-  db.prepare(`DELETE FROM journal_entries WHERE txn_date = ? AND source = 'manual' AND (description LIKE 'Manual entry:%' OR description LIKE 'Test %' OR description LIKE 'Pay down credit card' OR description LIKE 'Owner draw')`).run(TX_DATE);
+  db.prepare(`DELETE FROM journal_entries WHERE txn_date = ? AND source = 'manual' AND (description LIKE 'Manual entry:%' OR description LIKE 'Test %' OR description LIKE 'Pay down credit card' OR description LIKE 'Owner draw' OR description LIKE 'Took on more debt' OR description LIKE 'Owner contribution')`).run(TX_DATE);
 }
 
 let pass = 0, fail = 0;
@@ -137,7 +138,12 @@ const e3 = createEntry({
     mtc.debit === 250 && mtc.credit === 0);
 }
 
-// --- Test 4: positive liability (credit normal) ---
+// --- Test 4: positive liability (credit normal, paid down) ---
+// D64: Liability "Positive = You paid it down. Negative = You took on more debt."
+// Paying down a liability REDUCES the liability balance. The reducing side on
+// a credit-normal account is a DEBIT — so a positive amount should DEBIT the
+// category (and credit the matched asset, since the user funded the paydown
+// from somewhere).
 const e4 = createEntry({
   txn_date: TX_DATE,
   type: 'liability',
@@ -150,12 +156,16 @@ const e4 = createEntry({
   const lines = db.prepare('SELECT * FROM journal_lines WHERE entry_id = ?').all(e4.id);
   const cat = lines.find(l => l.account_id === A2000.id);
   const mtc = lines.find(l => l.account_id === A1000.id);
-  ok('Test 4: +liability → credit category, debit matched (asset)',
-    cat.credit === 100 && cat.debit === 0 &&
-    mtc.debit === 100 && mtc.credit === 0);
+  ok('Test 4: +liability (paid down) → debit category, credit matched (asset)',
+    cat.debit === 100 && cat.credit === 0 &&
+    mtc.credit === 100 && mtc.debit === 0);
 }
 
 // --- Test 5: positive equity (credit normal, owner draw) ---
+// D64: Equity "Positive = Owner took money out. Negative = Owner put money in."
+// A draw REDUCES equity. The reducing side on a credit-normal account is a
+// DEBIT — so a positive amount should DEBIT the category (and credit the
+// matched asset, since the cash left the business).
 const e5 = createEntry({
   txn_date: TX_DATE,
   type: 'equity',
@@ -168,17 +178,57 @@ const e5 = createEntry({
   const lines = db.prepare('SELECT * FROM journal_lines WHERE entry_id = ?').all(e5.id);
   const cat = lines.find(l => l.account_id === A3000.id);
   const mtc = lines.find(l => l.account_id === A1000.id);
-  ok('Test 5: +equity (draw) → credit equity, debit matched (asset)',
-    cat.credit === 50 && cat.debit === 0 &&
-    mtc.debit === 50 && mtc.credit === 0);
+  ok('Test 5: +equity (draw) → debit equity, credit matched (asset)',
+    cat.debit === 50 && cat.credit === 0 &&
+    mtc.credit === 50 && mtc.debit === 0);
+}
+
+// --- Test 4b: negative liability (took on more debt) ---
+// D64: "Negative = You took on more debt." Increasing a liability balance is
+// a CREDIT (the normal-credit side, going up). Negative amount → credit cat.
+const e4b = createEntry({
+  txn_date: TX_DATE,
+  type: 'liability',
+  category_account_id: A2000.id,
+  matched_account_id: A1000.id,
+  amount: -75,
+  description: 'Took on more debt',
+});
+{
+  const lines = db.prepare('SELECT * FROM journal_lines WHERE entry_id = ?').all(e4b.id);
+  const cat = lines.find(l => l.account_id === A2000.id);
+  const mtc = lines.find(l => l.account_id === A1000.id);
+  ok('Test 4b: -liability (took on more debt) → credit category, debit matched (asset)',
+    cat.credit === 75 && cat.debit === 0 &&
+    mtc.debit === 75 && mtc.credit === 0);
+}
+
+// --- Test 5b: negative equity (owner contribution) ---
+// D64: "Negative = Owner put money in." Increasing equity is a CREDIT (the
+// normal-credit side, going up). Negative amount → credit cat.
+const e5b = createEntry({
+  txn_date: TX_DATE,
+  type: 'equity',
+  category_account_id: A3000.id,
+  matched_account_id: A1000.id,
+  amount: -500,
+  description: 'Owner contribution',
+});
+{
+  const lines = db.prepare('SELECT * FROM journal_lines WHERE entry_id = ?').all(e5b.id);
+  const cat = lines.find(l => l.account_id === A3000.id);
+  const mtc = lines.find(l => l.account_id === A1000.id);
+  ok('Test 5b: -equity (contribution) → credit equity, debit matched (asset)',
+    cat.credit === 500 && cat.debit === 0 &&
+    mtc.debit === 500 && mtc.credit === 0);
 }
 
 // --- Audit log ---
 {
   const auditCount = db.prepare(
-    `SELECT COUNT(*) AS c FROM audit_log WHERE source = 'journal_entry' AND source_id IN (?,?,?,?,?)`
-  ).get(e1.id, e2.id, e3.id, e4.id, e5.id).c;
-  ok('Audit log row written for each of the 5 entries', auditCount === 5, `${auditCount} rows`);
+    `SELECT COUNT(*) AS c FROM audit_log WHERE source = 'journal_entry' AND source_id IN (?,?,?,?,?,?,?)`
+  ).get(e1.id, e2.id, e3.id, e4.id, e5.id, e4b.id, e5b.id).c;
+  ok('Audit log row written for each of the 7 entries', auditCount === 7, `${auditCount} rows`);
   const a1 = db.prepare(`SELECT * FROM audit_log WHERE source_id = ?`).get(e1.id);
   ok('Audit summary starts with "Created journal entry on"',
     a1 && a1.summary.startsWith('Created journal entry on'));
@@ -192,7 +242,7 @@ const e5 = createEntry({
 // --- listEntries filter API ---
 {
   const byDate = listEntries({ date_from: TX_DATE, date_to: TX_DATE });
-  ok('listEntries by date_from/to contains all 5 new entries', byDate.rows.length >= 5, `${byDate.rows.length} rows`);
+  ok('listEntries by date_from/to contains all 7 new entries', byDate.rows.length >= 7, `${byDate.rows.length} rows`);
   ok('listEntries rows include category_code + matched_code',
     byDate.rows[0] && byDate.rows[0].category_code && byDate.rows[0].matched_code);
 
@@ -237,21 +287,52 @@ for (const [a, lbl] of [[0, 'zero'], [0.004, '<0.005']]) {
   ok(`Validation: ${lbl} amount rejected`, rejected);
 }
 
-// --- Account balance snapshot ---
+// --- account_balances snapshot (SIG-2: writes disabled) ---
+// Phase 1+2 has no consumer for account_balances, and the dated-snapshot
+// design had a known staleness bug (backdated entries + deletes). Decision
+// (see journalService.js): stop writing snapshots from createEntry(); the
+// table is left in place but empty. Balances are derived at query time by
+// summing journal_lines. Phase 5 should design its own cache when there's
+// an actual consumer. This test asserts the new behavior.
 {
+  // After running the 7 test entries above, there should be NO row in
+  // account_balances for our test date (the service no longer writes here).
   const bal = db.prepare(
     `SELECT * FROM account_balances WHERE account_id = ? AND as_of_date = ?`
   ).get(A6010.id, TX_DATE);
-  // 6010 (expense, debit normal) went up +45.20, then down -30 → net +15.20.
-  // Note: there's existing import-driven journal_lines for 6010 from earlier,
-  // but those weren't posted through this service, so the snapshot only
-  // reflects what THIS service posted. We just assert it sums to +15.20.
-  ok('account_balances row exists for A6010',
-    bal !== undefined, `balance=${bal && bal.balance}`);
-  if (bal) {
-    ok('account_balances matches running total (+15.20 net for 6010 today)',
-      Math.abs(bal.balance - (45.20 - 30)) < 1e-6,
-      `balance=${bal.balance}`);
+  ok('account_balances: no stale snapshot written for A6010@TX_DATE (SIG-2 decision)',
+    bal === undefined, `bal=${bal && bal.balance}`);
+}
+
+// --- SIG-3: DELETE handler writes an audit_log row (D66) ---
+// D66: "Edits and deletes on manual entries are also audited." deleteEntry()
+// writes event='deleted' with before_json = full entry+lines snapshot. The
+// audit row survives the delete of journal_entries (audit_log is a soft
+// reference, not a FK, by design).
+{
+  // Delete one of our test entries (Test 4b: liability "Took on more debt").
+  const beforeDelete = db.prepare(`SELECT * FROM journal_entries WHERE id = ?`).get(e4b.id);
+  ok('SIG-3 prep: entry e4b exists before delete', beforeDelete !== undefined);
+
+  // Call the service function directly (the route handler just delegates here).
+  deleteEntry(e4b.id);
+
+  // The journal_entries row should be gone (FK CASCADE removed the lines too).
+  const afterDelete = db.prepare(`SELECT id FROM journal_entries WHERE id = ?`).get(e4b.id);
+  ok('SIG-3: journal_entries row removed by deleteEntry()', afterDelete === undefined);
+
+  // The audit_log row should now exist with event='deleted'.
+  const auditRow = db.prepare(
+    `SELECT * FROM audit_log WHERE source = 'journal_entry' AND source_id = ? AND event = 'deleted'`
+  ).get(e4b.id);
+  ok('SIG-3: audit_log row written for delete (event=deleted)', auditRow !== undefined);
+  if (auditRow) {
+    ok('SIG-3: deleted audit row has before_json with entry + lines',
+      auditRow.before_json !== null && JSON.parse(auditRow.before_json).entry.id === e4b.id);
+    ok('SIG-3: deleted audit row summary starts with "Deleted journal entry"',
+      auditRow.summary.startsWith('Deleted journal entry on'));
+    ok('SIG-3: deleted audit row has after_json = NULL',
+      auditRow.after_json === null);
   }
 }
 
