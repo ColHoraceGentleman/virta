@@ -1,7 +1,7 @@
 # Virta Books — Setup Wizard & Categories Management Spec
 
 **Owner:** Rusty
-**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer). **Round 3 applied 2026-07-08** (stripped step 1, renamed Your Name, fixed step 6 UX). **Round 4 applied 2026-07-08** (Chantelle-specific placeholders removed; Categories wizard step 2 got Hide/Delete + sticky header + sortable columns + "show account numbers" wizard prompt; step 3 reordered (Sales first, Other Income last); step 4 unified to single Add Account button; Add modal got Type picker + Note field + relabeled "Tax Line Item (Schedule C of IRS Form 1040)"). **Round 5 applied 2026-07-08** (single-page Categories Management with search + 4 filter chips + Show hidden + new Settings → Categories subsection). **Round 6 applied 2026-07-08** (welcome uses checkbox not toggle; IRS Form 1040 introduced before Schedule C; step 2 cells got Edit + Hide + Delete with no inline rename + Category Name + Tax Description + Review Later moved fully off step 2 to step 5; "Skip" button became "Revert to Defaults" when state has changed; edit modal got a generic Notes field; Delete closure bug fixed; step 2 window taller; sticky-header rule confirmed global for in-wizard and management lists).
+**Status:** Decisions locked 2026-07-07. **Round 2 applied 2026-07-08** (merged Owner + Business identity + Tax IDs into one step, alphabetical account numbering, NAICS lookup modal, edit-on-review pattern, asset/liability/equity subheaders, Welcome-screen Schedule C explainer). **Round 3 applied 2026-07-08** (stripped step 1, renamed Your Name, fixed step 6 UX). **Round 4 applied 2026-07-08** (Chantelle-specific placeholders removed; Categories wizard step 2 got Hide/Delete + sticky header + sortable columns + "show account numbers" wizard prompt; step 3 reordered (Sales first, Other Income last); step 4 unified to single Add Account button; Add modal got Type picker + Note field + relabeled "Tax Line Item (Schedule C of IRS Form 1040)"). **Round 5 applied 2026-07-08** (single-page Categories Management with search + 4 filter chips + Show hidden + new Settings → Categories subsection). **Round 6 applied 2026-07-08** (welcome uses checkbox not toggle; IRS Form 1040 introduced before Schedule C; step 2 cells got Edit + Hide + Delete with no inline rename + Category Name + Tax Description + Review Later moved fully off step 2 to step 5; "Skip" button became "Revert to Defaults" when state has changed; edit modal got a generic Notes field; Delete closure bug fixed; step 2 window taller; sticky-header rule confirmed global for in-wizard and management lists). **Round 15 applied 2026-07-09** (Phase 1 cleanup: spec dedupe of D29–D32/D43–D49, wireframe dead-code removal of `state.activeTab` + legacy `catFilter='revenue'/'ale'` router, smoke test updated for the D62 New-entry modal).
 **Replaces:** Section 1 (Chart of Accounts) of `ACCOUNTING-v1.md` — keeps the rest of v1 intact.
 
 ---
@@ -72,17 +72,13 @@ Decisions from the 2026-07-07 planning session, locked in:
 | D22 | Categories Wizard step 4 has a single top-of-step "Add account" button that opens the generic Add modal with a Type picker. No per-subheader Add buttons. |
 | D23 | Default Income ordering: **Sales → Refunds & Returns → Other Income** (not alphabetical). Codes: 4000/4010/4020. Sales at 4000 because it's the primary inflow. "Other Income" last because it's the catch-all for refund/adjustment edge cases. |
 | D24 | Add Account modal is generic — used by both wizard and management screens. Fields: **Type** (Expense / Asset / Liability / Equity / Income) + Name + Code + **Tax Line Item (Schedule C of IRS Form 1040)** + **Note**. Type picker changes which Schedule C line options are shown (expense → expense lines, income → income lines, others → no line). |
-| D25 | Categories Management page is **single-page** (not tabbed). Above the table: search bar + 4 filter chips (**Show All / Expenses / Revenue / Assets-Liabilities-Equity**) + **Show hidden** toggle. Search matches name + code + descriptor (case-insensitive substring). Default chip = "Show All". Filter state persists in URL/query string (e.g. `?filter=expenses&q=rent`) so the user can bookmark or share. |
+| D25 | Categories Management page is **single-page** (not tabbed). Above the table: search bar + 4 filter chips (**Show All / Expenses / Income / Assets-Liabilities-Equity**) + **Show hidden** toggle. Search matches name + code + descriptor (case-insensitive substring). Default chip = "Show All". Filter state persists in URL/query string (e.g. `?filter=expenses&q=rent`) so the user can bookmark or share. |
 | D26 | "Show hidden" toggle on Categories Management: when **off** (default), hidden categories are filtered out of the view entirely. When **on**, hidden rows are included in the table and rendered with the same strikethrough/opacity-45 styling used in the wizard. Toggle state persists per session (no URL param). |
 | D27 | **Settings → Categories** section is its own subsection of global settings. Controls: **Default sort** (radio: "Alphabetical by name" / "Alphabetical by code", default = by name) + **Show account numbers** (toggle, default OFF per D21 cascade). Selecting a new default sort updates the Categories Management table immediately and writes to `settings.category_default_sort` for persistence. |
 | D28 | Categories Management table headers are clickable for sort (same pattern as wizard: `↑`/`↓`/`↕` indicators). Active sort overrides the Settings default until the user navigates away. |
 | D29 | Wizard step 1 "Show 4-digit account numbers" preference uses a **checkbox** (not a toggle switch or radio) — clearer mental model. Same default (OFF) and behavior as D21. |
 | D30 | Categories wizard rows show **no inline rename**. Editing a row's name happens only via the existing **Edit** modal (same one used in Categories Management). Each row therefore offers three actions: **Edit / Hide / Delete**, all in one cell. |
 | D31 | Categories table column "Descriptor" is renamed to **"Tax Description"**. The cell shows the IRS descriptor of the mapped line (e.g. "Bookkeeper, accountant fees"). Not editable in the row — determined by the tax classification. For free-form user notes, use the new **Notes / Description** field in the Edit modal (separate from Tax Description). |
-| D32 | "Review Later" system category does **not** appear in the Categories wizard step 2 (expense) table. It is created on step 5 with name **"Uncategorized Items Needing Review"** and code **9999**, with a brief explainer. Removing it from step 2 keeps the user-facing expense choices focused on real categories. |
-| D29 | Wizard step 1 "Show 4-digit account numbers" preference uses a **checkbox** (not a toggle switch or radio) — clearer mental model. Same default (OFF) and behavior as D21. |
-| D30 | Categories wizard rows show **no inline rename**. Editing a row's name happens only via the existing **Edit** modal (same one used in Categories Management). Each row therefore offers three actions: **Edit / Hide / Delete**, all in one cell. |
-| D31 | Categories table label "Descriptor" is renamed to **"Tax Description"**. The cell shows the IRS descriptor of the mapped line (e.g. "Bookkeeper, accountant fees"). Not editable in the row — determined by the tax classification. For free-form user notes, use the new **Notes** field in the Edit modal (separate from Tax Description). |
 | D32 | "Review Later" system category does **not** appear in the Categories wizard step 2 (expense) table. It is created on step 5 with name **"Uncategorized Items Needing Review"** and code **9999**, with a brief explainer. Removing it from step 2 keeps the user-facing expense choices focused on real categories. |
 | D33 | Wizard step-CTA "Skip (use all defaults)" becomes **"Revert to Defaults"** when the user has changed anything on that step (hide / delete / rename / add). Clicking restores the default seed for the current step's account list. Label reverts to "Skip (use all defaults)" when no changes are present. |
 | D34 | Sticky header on categories tables is global: any list using `.cat-table` class (wizard steps 2/3/4/5 + management screen) gets `position: sticky; top: 0; z-index: 2` on its `<th>` cells. |
@@ -92,7 +88,7 @@ Decisions from the 2026-07-07 planning session, locked in:
 | D39 | Edit modal **Notes** field placeholder: "What is this category used for?" (e.g. "Dues paid to local trade association"). It is **not** stored for or surfaced in audit logs or Reports drill-downs — those rely on the tax line. |
 | D40 | Categories wizard step 2/3/4 CTAs (Back / Skip-or-Revert / Save & continue) live **inside** the scrollable table container, sticky-bottom. No double scroll: the user scrolls the table; the buttons are always visible. Applies to steps 2, 3, 4 (not 5, which has no table). |
 | D41 | All categories tables use `table-layout: fixed` with explicit `<colgroup>` per column: `code` ~80px when shown, `actions` ~140px, `name` and `tax_line` flexible (proportional). Editing a row's name no longer shifts the widths of other columns. |
-| D42 | Sidebar: **single "Categories" link** (not Income/Expenses/Other as separate sub-links). The click routes to the Categories Management page with `catFilter='all'` (Show All) as the default. The Review Later badge remains on the single Categories entry. |
+| D42 | Sidebar: **single top-level "Categories" link** (not a "Categories" section with a child link, and not Income/Expenses/Other as separate sub-links). The click routes to the Categories Management page with `catFilter='all'` (Show All) as the default. The Review Later badge remains on the single Categories entry. |
 | D43 | Step 5 (Review Later) shows the category with **name "Review Later"**. Description reads: "Review Later is a default expense bucket for when you can't confidently categorize a transaction. Once you have discovered the correct category, you can come back and move items to the right category any time." Row layout: name + description + status; no em-dashes anywhere in the row. |
 | D44 | Step 6 (Final review) counts use `state.expenses/income/other.length` directly (no filtering on `e.on`, which is a round-2 leftover field). When the user hasn't changed anything, all counts show the default totals. |
 | D45 | Sidebar Review Later badge is a **small circular number** in the corner (icon-style badge with `border-radius: 50%`, ~18px diameter, no fill). Distinct from the full-width "Expense accounts" pill in the management screen. |
@@ -101,13 +97,23 @@ Decisions from the 2026-07-07 planning session, locked in:
 | D48 | Wizard step 2/3/4 scroll window height is **viewport-relative**: `max-height: calc(100vh - 320px)` so the window fills available vertical space without forcing small viewports to scroll the outer page. |
 | D49 | Settings page segmented by **top-of-page tabs** with three sections: **General** (business name, EIN, currency — all editable from settings), **Categories** (default sort, show account numbers), **Other** (everything else that was previously on the bare page: accounting method, fiscal year start, business type, run setup wizard again, etc.). Tabs persist via `state.settingsTab` (`'general' \| 'categories' \| 'other'`). |
 | D50 | Categories Management table (single-page, outside the wizard): **"Transactions" column → "Balance"**. For **flow-based accounts** (Income, Expense) the cell shows **—** (they don't hold a balance, they accumulate). For **balance-based accounts** (Asset, Liability, Equity) the cell shows the current dollar balance, formatted with thousands separator and sign-aware minus (`−$1,234.56`). |
-| D43 | Step 5 (Review Later) shows the category with **name "Review Later"** (not "Uncategorized Items Needing Review"). Description reads: "Review Later is a default expense bucket for when you can't confidently categorize a transaction. Once you have discovered the correct category, you can come back and move items to the right category any time." Row layout: name + description + status, no em-dashes. |
-| D44 | Step 6 (Final review) counts use `state.expenses/income/other.length` directly (no filtering on `e.on`, which is a round-2 leftover field). When the user hasn't changed anything, all counts show the default totals. |
-| D45 | Sidebar Review Later badge is a **small circular number** in the corner (icon-style badge with `border-radius: 50%`, ~18px diameter). Distinct from the full-width "Expense accounts" pill in the management screen. |
-| D46 | Add Account modal: Code field visible **only when `show_account_numbers` is on** — same rule as the Edit modal (D37). When account numbers are off, the Code field is removed entirely from the Add form. |
-| D47 | Add Account modal: Type picker is **always free** (no wizard locking — locked-Typer behavior lives in the Edit modal only). User explicitly picks Expense / Income / Asset / Liability / Equity. Pushed rows land in the right array based on Type. |
-| D48 | Wizard step 2/3/4 scroll window height is **viewport-relative**: `max-height: calc(100vh - 320px)` so the window fills available vertical space without forcing small viewports to scroll the outer page. |
-| D49 | Settings page is now segmented by **top-of-page tabs** with three sections: **General** (business name, EIN, currency — all editable from settings), **Categories** (default sort, show account numbers), **Other** (everything else that was previously on the bare page: accounting method, fiscal year start, business type, run setup wizard again, etc.). Tabs persist across renders via `state.settingsTab` (`'general' \| 'categories' \| 'other'`). |
+| D51 | v2 design principle (Patrick 2026-07-08 17:56 MDT): **non-accountant simplicity**. Every UI choice is evaluated through "would a non-accountant understand this without an explanation?" If yes, keep; if no, simplify, defer, or remove. Accounting correctness happens behind the scenes; the user sees plain English. |
+| D52 | v2 has **no subtypes**. Schedule C line is the implicit categorization — reports group by Schedule C section (Part I / Part II / Part III). No new "subtype" field on accounts. |
+| D53 | v2 has **no COGS accounts seeded**, and the accounts schema has **no COGS-specific column**. COGS is **out of v2 entirely** (it's a v3 candidate). The Schedule C Part III lines exist in the tax-line picker as informational only — picking one does NOT auto-create a COGS-flagged account. |
+| D54 | Account type is **immutable after creation**. Once an account is created with type Expense, it stays Expense. To re-classify, the user creates a new account with the new type and reassigns transactions. The Edit modal does not offer a type-change option. |
+| D55 | v2 account status uses **two flags only**: `is_hidden` (user-facing: hides the row from the default Categories Management view; toggle via Show hidden) and `is_system` (internal: locks system accounts like Review Later from edit/delete). The earlier proposed `is_active` is **dropped** — it would have meant nearly the same thing as `is_hidden` to a non-accountant user, and one flag is simpler than two. |
+| D56 | **No explicit year-end close in v2.** Net income/loss automatically flows into Equity (Retained Earnings) when reports run — the user never sees a "close fiscal year" button. Accounting is correct; the UI is invisible. |
+| D57 | v2 chart-of-accounts code ranges (locked, internal — not exposed in UI by default): **1xxx** Assets, **2xxx** Liabilities, **3xxx** Equity, **4xxx** Income (4000 Sales, 4010 Refunds & Returns, 4020 Other Income per D23), **5xxx** Reserved (future COGS), **6xxx** Expenses (alphabetical per D16, 6999 = Review Later per D32), **9xxx** System (9999 = Review Later per D32). 5xxx range exists for forward-compatibility only — no v2 accounts use it. |
+| D58 | v2 wizard Add/Edit modal exposes **only the user-relevant fields**: Name + Code (if `show_account_numbers` is on, per D37/D46) + Tax Line Item (Schedule C of IRS Form 1040) + Note. Type is **always visible** (per D38/D47) but locked to the caller's context in the wizard. Normal balance, closing behavior, and code-range logic are **schema-only** — not surfaced in any UI text. |
+| D59 | General Ledger table columns (Patrick 2026-07-08): Date, Type, Name (vendor/customer), Amount, Description, Category, **Matched with** (plain-English label for the other side of the balanced entry), and reconciliation status. The main all-up General Ledger does **not** show Balance. Balance is reserved for future filtered views: when viewing a balance-sheet account's ledger from the Chart of Accounts, or when the GL is filtered to a balance-sheet account. In those filtered views, Balance is a number-only as-of-this-transaction account balance. Category / Matched with show `Code-Category` only when account numbers are enabled (e.g., `6010-Wages`); otherwise just the category name. Reconciliation status has three placeholder states for now: empty, In progress, Reconciled. Final reconciliation semantics wait for Phase 9. |
+| D60 | System categories (currently **Review Later**) do not show Edit, Delete, Hide, or **Merge and Delete** row actions. Their action cell shows **System** only. **Merge and Delete** is no longer a row-level action; it lives inside the Edit category modal for normal categories. The explainer must say that transactions move to the destination category, then the source category is deleted. |
+| D61 | **New manual entry** opens a manual journal entry modal, but the UI avoids debit/credit language. Fields: Date, Name (optional), Amount, Description, Category, **Matched with**, and Notes. Helper copy explains that Virta creates the balanced ledger entry behind the scenes. Footer actions: Cancel, Save draft, Post entry. *(Superseded by D62-D66 below for v2: the form fields, sign convention, label rule, save behavior, and audit policy are all re-locked there.)* |
+| D62 | v2 manual-entry form (button text: **New entry**) has three fields: **Account** + **Change** + **Other account**. **No type picker, no debit/credit picker, no drafts.** The Account picker lets the user choose any account; the Other account picker lets the user choose any account (defaults to the user's default cash account from Setup Wizard, can be overridden). Date, Description, and Notes are also captured (from D61). |
+| D63 | Sign convention in the manual-entry form is consistent across all account types: **positive = the picked Account went up; negative = the picked Account went down.** The system silently translates the sign into the correct debit/credit based on each account's normal balance (Asset/Expense normal debit → positive means debit; Liability/Equity/Income normal credit → positive means credit). User never sees debit/credit language. The Other account row receives the opposite sign with the same magnitude. |
+| D64 | The Change field's label varies subtly based on the picked Account's type, to guide the lay user toward the right sign: **Expense** → "Amount"; **Income** → "Amount"; **Asset** → "Change in balance"; **Liability** → "Change in balance"; **Equity** → "Change". The label is read from the Account's type — no separate type picker needed. |
+| D65 | Manual-entry form has a single **Save** button (no Save draft / Post entry split per D61). On save, the entry posts to the GL immediately, becomes visible everywhere (reports, dashboard), and is included in all balance/total calculations from that moment. Reconciliation status starts as empty (finalized when Phase 9 lands). |
+| D66 | Every manual entry writes an audit row (per the locked v2 audit-log spec): `event: created`, with the full posting detail in the before/after field (before = nothing, after = the new balanced GL row). Edits and deletes on manual entries are also audited. |
+| D67 | v2 Categories Management filter chip and active page heading say **Income** (not "Revenue"). All other category-related copy uses "Income." |
 
 ---
 
@@ -146,6 +152,7 @@ The existing `accounts` table stays. Two changes:
 
 1. `irs_line` becomes mandatory at insert time (was nullable in v1 spec for edge cases). Enforced at the wizard + categories-management UI layer. Old rows with NULL are grandfathered with a one-time migration: if NULL, populate from a default heuristic or surface a "this account needs a line" warning on the categories list.
 2. New optional column: `short_id` (TEXT) — used as a stable alternative to `code` for the account-number toggle. When account numbering is toggled off in settings, the UI hides `code` and shows `name` only. `code` stays present in the DB regardless.
+3. New columns per Phase 1 design (2026-07-08, see §10A): `is_hidden` (BOOLEAN DEFAULT 0, user-facing), `is_system` (BOOLEAN DEFAULT 0, internal, locks Review Later from delete/type-change). `type` is immutable after insert (enforced at application layer — no UI path to change it, per D54). No `is_active`, no `subtype`, no COGS-specific column (per D52/D53/D55).
 
 ```sql
 -- Existing schema, with the constraint added:
@@ -393,7 +400,7 @@ Equity (3)
 
 Auto-creates a single expense account:
 - Number: 6999
-- Name: "Review Later" (user can rename)
+- Name: "Review Later" (system category; user cannot rename/delete/merge)
 - Type: Expense
 - Schedule C line: **none** (the only account with no mapping)
 - Sidebar badge will show pending count once transactions exist
@@ -425,7 +432,7 @@ A **single page**, not tabbed. Top of the page has a toolbar with controls; belo
 
 ```
 [ 🔍 Search categories...                          ]   ← text input, debounced 150ms
-( ) Show All  ( ) Expenses  ( ) Revenue  ( ) A/L/E   ← filter chips; default = Show All
+( ) Show All  ( ) Expenses  ( ) Income  ( ) A/L/E   ← filter chips; default = Show All
                                                                  [Show hidden]   ← toggle; default off
 
 (typography legend above the table for clarity)
@@ -437,7 +444,7 @@ A **single page**, not tabbed. Top of the page has a toolbar with controls; belo
 - **Filter chips** — 4 mutually exclusive values. Default = `Show All`. Selecting a chip filters the table to rows with that `account_type`:
   - `Show All` → every type visible
   - `Expenses` → Expense accounts only
-  - `Revenue` → Income accounts only
+  - `Income` → Income accounts only
   - `Assets/Liabilities/Equity` → Asset + Liability + Equity accounts
 - **Show hidden toggle** — default OFF. When OFF, hidden rows are completely filtered out. When ON, hidden rows appear in the table with the same strikethrough + opacity-45 styling used in the wizard (so the user can re-decide).
 - Filter state + search query + show-hidden state are reflected in the URL: `?filter=expenses&q=rent&hidden=1`. Bookmarking, sharing, and back-button all preserve state.
@@ -447,15 +454,14 @@ A **single page**, not tabbed. Top of the page has a toolbar with controls; belo
 | Name ↑↓ | Code ↑↓ | Type | Tax line | Transactions | ⋯ |
 
 - **Sortable headers** — `↑` / `↓` / `↕` indicators. Default sort = the value from Settings → Categories (per D27). Until the user clicks a header, the table follows that default. First click on a header takes over with ascending, second click toggles descending, click on a different header resets to ascending.
-- **Type column** — for income rows: "Income"; for expense rows: "Expense"; for other: "Asset" / "Liability" / "Equity" (the row's actual type, not a grouping).
+- **Type column** — for income rows: "Income"; for expense rows: "Expense"; for other: "Asset" / "Liability" / "Equity" (the row's actual type, not a grouping). All four use the same plain-text styling — no pill/badge styling for Balance Sheet types, which would only make sense to accountants (non-accountant simplification per D51).
 - Tax line — badge (Line 8 / Line 16b / Part I line 1 / etc.) for income + expense; "—" for asset/liability/equity.
 - Transactions column — count of journal entries referencing this account. Click → navigates to Reports → Transactions filtered to that account.
 - ⋯ menu:
   - Edit (rename, change code, change Schedule C line)
-  - Disable (sets `is_active = 0`, hides from pickers; reversible)
+  - Hide / Show (toggles `is_hidden`; reversible)
   - Delete (blocked if transactions reference — see §8.3)
-  - Merge with… (pick destination account — see §8.4)
-  - Hide / Show (toggles the global hidden flag — same flag as the wizard's Hide button)
+  - Merge and Delete… (inside Edit modal; pick destination account — see §8.4)
 
 ### 8.2 Add account modal (generic, used everywhere)
 
@@ -484,11 +490,11 @@ If `transactions.account_id` references the account → modal:
 
 Once reassigned (or if no transactions), delete confirms and runs.
 
-### 8.4 Merge flow
+### 8.4 Merge and Delete flow
 
 Pick source + destination. Same `account_type` required. Modal:
-> "All transactions on **[source]** will be moved to **[destination]**. This can't be undone."
-> [Merge] [Cancel]
+> "All transactions on **[source]** will be moved to the destination category, then **[source]** will be deleted. Same account type required. This can't be undone."
+> [Merge and Delete] [Cancel]
 
 Single SQL transaction: re-points journal lines + transactions, deletes source.
 
@@ -630,6 +636,78 @@ Single page hosts the management UI per §8.
 
 ---
 
+## 10A. Chart of Accounts — formal schema
+
+This section captures the accounting logic that runs **behind the UI** so Phase 2 (GL architecture) and Phase 13 (Reports) have a stable foundation. The user never sees most of this — it's documented here so we don't reinvent it during build.
+
+### 10A.1 Account types, normal balances, and closing behavior (D52, D56)
+
+| Type | Normal balance | Closes to | UI label |
+|---|---|---|---|
+| **Asset** | Debit | Never (permanent) | "Asset" |
+| **Liability** | Credit | Never (permanent) | "Liability" |
+| **Equity** | Credit | Never (permanent) | "Equity" |
+| **Income** | Credit | Auto-flows into Equity (Retained Earnings) when reports run (D56) | "Income" |
+| **Expense** | Debit | Auto-flows into Equity (Retained Earnings) when reports run (D56) | "Expense" |
+
+**No explicit year-end close in v2 (D56).** The user does not see a "Close fiscal year" button anywhere. Net P&L flows into Equity automatically when reports run — accounting is correct, the ceremony is invisible.
+
+### 10A.2 No subtypes (D52)
+
+Schedule C line is the implicit categorization. Reports group by Schedule C section (Part I for Income, Part II for Expenses, Part III reserved for future COGS). No new "subtype" field on accounts.
+
+### 10A.3 No COGS in v2 (D53)
+
+- No COGS accounts are seeded.
+- The accounts schema has no COGS-specific column.
+- Schedule C Part III lines exist in the tax-line picker as **informational only** — picking one does NOT auto-create a COGS-flagged account. The wizard's UI treats it the same as any other Expense category.
+- COGS is a **v3 candidate** (parked in the Virta Books v3 candidates card).
+
+### 10A.4 Code ranges (D57, internal)
+
+Codes are **never shown to the user by default**. They are stored in the DB and surface only when `settings.show_account_numbers` is on (default OFF per D27).
+
+| Range | Type | Notes |
+|---|---|---|
+| 1xxx | Assets | 1000–1099 Cash & bank, 1100–1199 A/R, 1200–1299 Other current, 1300+ Property/equipment |
+| 2xxx | Liabilities | 2000–2099 Credit cards, 2100+ Loans, 2200+ Bills payable |
+| 3xxx | Equity | 3000 Owner's equity, 3100 Draws, 3200 Retained earnings |
+| 4xxx | Income | 4000 Sales, 4010 Refunds & Returns, 4020 Other Income (per D23) |
+| 5xxx | (Reserved) | Future COGS — no v2 accounts use this range |
+| 6xxx | Expenses | Alphabetical per D16 (6000 Accounting, 6010 Advertising, …) |
+| 9xxx | System | 9999 = Review Later (per D32) |
+
+The wizard assigns codes automatically when seeding defaults (alphabetical per D16). User-created custom accounts get the next available code in the appropriate range.
+
+### 10A.5 Status flags (D55)
+
+Two flags only:
+
+- **`is_hidden`** (boolean, default false) — **user-facing**. Hides the row from the default Categories Management view. Toggle via "Hide" button in wizard + Edit modal; toggle globally via "Show hidden" chip in Categories Management. Replaces the older `is_active` flag — one flag is simpler than two for a non-accountant user.
+- **`is_system`** (boolean, default false) — **internal**. Set to true for system accounts like Review Later (9999). When true, the account cannot be deleted or have its type changed. The Edit modal shows these rows but disables destructive actions.
+
+### 10A.6 Type immutability (D54)
+
+Once an account is created with a type, the type cannot be changed via UI. The Edit modal does not offer a type-change option. To re-classify, the user creates a new account with the new type and reassigns transactions manually. This keeps the GL postings clean (a historical Expense transaction can never silently become an Income transaction because the account got renamed).
+
+### 10A.7 Modal field surface (D58)
+
+The Add Account / Edit Account modal exposes **only**:
+
+- Name (always)
+- Code (only when `settings.show_account_numbers` is on — per D37/D46)
+- Tax Line Item (Schedule C of IRS Form 1040) (always; picker filters by current Type)
+- Type (always visible, locked to caller's context in wizard per D38, free in management per D47)
+- Note (always; free-form text per D39)
+
+**Not exposed in any UI text:** normal balance, closing behavior, code-range logic, COGS classification.
+
+### 10A.8 Design principle recap (D51)
+
+Every UI choice in Phase 1+ is evaluated against the non-accountant simplicity principle: **would a non-accountant understand this without an explanation?** If yes, keep; if no, simplify, defer, or remove. Accounting correctness is preserved at the schema/GL layer; the user sees plain English.
+
+---
+
 ## 11. Multi-entity / future-proofing
 
 `businesses.business_type` enum exists with these values:
@@ -678,7 +756,7 @@ Components to build (TypeScript / React, Virta stack):
 - `AccountRow.tsx` — name / number / Schedule C line / actions menu
 - `AddAccountModal.tsx` — used by both wizards and the management screen
 - `DeleteAccountModal.tsx` — with reassignment flow
-- `MergeAccountModal.tsx`
+- `MergeAndDeleteAccountModal.tsx`
 - `RemapScheduleCLineModal.tsx`
 - `ScheduleCLinePicker.tsx` — reusable dropdown with descriptors
 
@@ -752,8 +830,8 @@ Wren review focuses on these behaviors (behavior IDs to be assigned in `qa/QA.md
 | CM-002 | Rename: no confirmation; transactions unchanged |
 | CM-003 | Schedule C remap: inline confirm; historical transactions reroute in aggregate views |
 | CM-004 | Delete with transactions: shows reassignment flow; reassign + delete works |
-| CM-005 | Merge same-type: works, source deleted, transactions moved |
-| CM-006 | Merge different type: blocked |
+| CM-005 | Merge and Delete same-type: transactions moved to destination, source deleted |
+| CM-006 | Merge and Delete different type: blocked |
 | CM-007 | Add custom category: Schedule C line picker shows all ~20 line options w/ descriptors |
 | ST-001 | Settings toggle: hide account numbers — UI strips the column; DB retains values |
 | ST-002 | Settings toggle: re-show account numbers — column returns |

@@ -1,0 +1,12 @@
+{
+  "name": "wf-smoke-deps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local node_modules for running tests/wf-smoke.mjs (jsdom). Not part of the app build.",
+  "scripts": {
+    "install-deps": "npm install"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

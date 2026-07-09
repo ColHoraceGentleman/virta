@@ -31,10 +31,18 @@ logs/
 
 # Backups / transient
 *.bak
+*.bak-*
 *.bak.*
 *.tmp
 *.orig
 data/*.backup-*
+
+# Wireframe smoke-test disposable artifacts (rounds 2/3/4 screenshots)
+docs/books/setup-wizard/wf-snap-*
+
+# Wireframe smoke-test local node_modules (jsdom lives in tests/.deps/)
+docs/books/setup-wizard/tests/.deps/node_modules/
+docs/books/setup-wizard/tests/.deps/package-lock.json
 
 # Codex / agent caches (defensive — should never appear in a project repo)
 codex-home/

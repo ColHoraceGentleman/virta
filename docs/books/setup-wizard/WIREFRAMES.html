@@ -138,6 +138,11 @@
   .pill.system{background:var(--info-soft);color:var(--info)}
   .pill.warn{background:var(--warn-soft);color:var(--warn)}
   .empty-state{text-align:center;padding:36px 12px;color:var(--muted)}
+  .ledger-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px}
+  .ledger-summary .metric{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;box-shadow:var(--shadow)}
+  .ledger-summary .metric .label{font-size:12px;color:var(--muted);margin-bottom:4px}
+  .ledger-summary .metric .value{font-size:20px;font-weight:650}
+  .ledger-table td:nth-child(6),.ledger-table td:nth-child(7){font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:#374151}
   .hidden{display:none}
   .grow{flex:1}
   .right{text-align:right}
@@ -155,8 +160,8 @@
       <a href="#" data-screen="dashboard">🏠 Dashboard</a>
       <a href="#" data-screen="invoices">🧾 Invoices</a>
       <a href="#" data-screen="transactions">💸 Transactions</a>
-      <div class="section">Categories</div>
-      <a href="#" onclick="state.screen='mgmt';state.catFilter='all';render()" class="sub"><span>• Categories</span><span class="review-pill" id="reviewBadge" hidden>0</span></a>
+      <a href="#" data-screen="ledger">📒 General Ledger</a>
+      <a href="#" onclick="state.screen='mgmt';state.catFilter='all';render()"><span>📂 Categories</span><span class="review-pill" id="reviewBadge" hidden>0</span></a>
       <div class="section">Setup</div>
       <a href="#" data-screen="setup">🚀 Run setup wizard</a>
       <a href="#" data-screen="settings" class="active">⚙️ Settings</a>
@@ -250,7 +255,6 @@ const state = {
   sortIncome:{key:'none',dir:'asc'}, /* income has an intentional non-alphabetical default order (Sales, Refunds & Returns, Other Income); user can still click headers to sort */
   sortOther:{key:'name',dir:'asc'},
   showNumbers:false,
-  activeTab:'expenses',  /* legacy; kept for routing compat — not used by single-page renderMgmt */
   catFilter:'all',       /* Categories Management single-page filter chip */
   catSearch:'',
   catShowHidden:false,
@@ -276,10 +280,19 @@ const CATS_STEPS=[
   {n:5,name:'Review Later',skippable:false},
   {n:6,name:'Final review',skippable:false}
 ];
+const LEDGER_ROWS=[
+  {date:'2026-07-08',type:'Invoice',name:'Little Pine Quilt Co.',amount:1200,description:'Pattern licensing invoice INV-1001',category:{code:'4000',name:'Sales'},matched:{code:'1100',name:'Accounts Receivable'},recon:''},
+  {date:'2026-07-09',type:'Payment',name:'Little Pine Quilt Co.',amount:1200,description:'Payment received for INV-1001',category:{code:'1000',name:'Business Checking'},matched:{code:'1100',name:'Accounts Receivable'},recon:'reconciled'},
+  {date:'2026-07-10',type:'Bill',name:'Paper Trail Studio',amount:-86.42,description:'Office supplies bill BILL-018',category:{code:'6120',name:'Office Expense'},matched:{code:'2200',name:'Bills Payable'},recon:'in-progress'},
+  {date:'2026-07-11',type:'Journal',name:'Owner',amount:-250,description:'Owner draw adjustment',category:{code:'3010',name:'Owner Draw'},matched:{code:'1000',name:'Business Checking'},recon:''}
+];
 const $=s=>document.querySelector(s);
 const esc=s=>(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function lineLabel(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?`${m.label} — ${m.desc}`:'—';}
 function lineShort(id){const m=IRS_EXPENSE_LINES.find(x=>x.id===id)||IRS_INCOME_LINES.find(x=>x.id===id);return m?m.label:(id?id:'—');}
+function accountLabel(acct){return state.showNumbers ? `${acct.code}-${acct.name}` : acct.name;}
+function fmtAmount(v){const sign=v<0?'−':'';return sign+'$'+Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');}
+function accountOptionList(){return [...state.income,...state.expenses,...state.other].filter(a=>!a.system).map(a=>`<option value="${esc(a.code)}" data-type="${esc(a.type)}">${esc(accountLabel(a))}</option>`).join('');}
 function refreshBadge(){const b=$('#reviewBadge');if(!b) return; const n = state.reviewLaterTxnCount||0; if(n>0){ b.hidden=false; b.textContent = String(n); } else { b.hidden = true; }}
 function progressDots(steps,cur){return steps.map(s=>{const cls=s.n<cur?'done':(s.n===cur?'current':'');return `<span class="dot ${cls}"></span>${s.n<steps.length?`<span class="bar ${s.n<cur?'fill':''}"></span>`:''}`;}).join('');}
 function topbar(title,crumbs){return `<div class="topbar"><div><div class="crumbs">${crumbs.map(c=>`<span class="crumb">${esc(c)}</span>`).join(' ')}</div><h1>${esc(title)}</h1></div><div class="right small muted">Wireframe · click any step to advance</div></div>`;}
@@ -815,33 +828,16 @@ function renderCats(){
 }
 
 /* ---- CATEGORIES MANAGEMENT ---- */
-function mgmtRow(prefix, item, i){
-  const sysTag = item.system ? '<span class="pill system">system</span>' : '';
-  const lnkBadge = item.line ? `<span class="badge">${esc(lineShort(item.line))}</span>` : '<span class="muted">—</span>';
-  const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '<td class="muted">—</td>';
-  const isFlow = prefix==='expenses' || prefix==='income';
-  const balanceCell = isFlow
-    ? '<td class="right nowrap muted">—</td>'
-    : (() => { const b = state.txnCounts[item.code]; return `<td class="right nowrap">${b==null?'<span class="muted">—</span>':(b<0?'−':'') + '$' + Math.abs(b).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td>`; })();
-  return `<tr${item.system?' class="review-later"':''}>
-    <td class="name"><strong>${esc(item.name)}</strong> ${sysTag}</td>
-    ${numCell}
-    <td class="linecol">${prefix==='other' ? `<span class="pill">${esc(item.type)}</span>` : lnkBadge}</td>
-    ${balanceCell}
-    <td class="row-actions">
-      <button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
-      <button class="icon-btn" title="Disable" onclick="window.__openModal('Disable category','Hide this category from pickers. Reversible.<p><em>${esc(item.name)}</em> will not appear in pickers but transactions remain.</p>',[{\"Cancel\":\"closeModal()\"},{\"Disable\":\"closeModal()\"}])">⊘</button>
-      <button class="icon-btn" title="Delete" onclick="window.__openDelete('${prefix}',${i})">🗑</button>
-      <button class="icon-btn" title="Merge" onclick="window.__openMerge('${prefix}',${i})">⇄</button>
-    </td>
-  </tr>`;
-}
 /* ---- CATEGORIES MANAGEMENT (single-page) ---- */
+/* Phase 1 design cleanup (2026-07-08): removed dead mgmtRow() function — it was superseded by
+   mgmtUnifiedRow() below in an earlier round but never deleted. It referenced a separate "Disable"
+   action that conflicted with D55 (one hidden-flag only, no second active-status flag).
+   mgmtUnifiedRow already correctly uses the single Hide/Show toggle. */
 function mgmtUnifiedRow(prefix, item, i){
   const sysTag = item.system ? '<span class="pill system">system</span>' : '';
   const numCell = state.showNumbers ? `<td><code>${item.code}</code></td>` : '';
   const typeCell = prefix==='other'
-    ? `<td><span class="pill">${esc(item.type)}</span></td>`
+    ? `<td>${esc(item.type)}</td>`
     : (prefix==='income' ? '<td>Income</td>' : '<td>Expense</td>');
   /* D36: combined Tax Line Item — badge + descriptor in one cell */
   const taxLineCell = prefix==='other'
@@ -855,6 +851,11 @@ function mgmtUnifiedRow(prefix, item, i){
     ? '<td class="right nowrap muted">—</td>'
     : (() => { const b = state.txnCounts[item.code]; return `<td class="right nowrap">${b==null?'<span class="muted">—</span>':(b<0?'−':'') + '$' + Math.abs(b).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</td>`; })();
   const rowCls = `${item.system?'review-later ':''}${item.is_hidden?'is-hidden':''}`.trim();
+  const actions = item.system
+    ? '<span class="muted small">System</span>'
+    : `<button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
+      <button class="icon-btn" title="${item.is_hidden?'Show':'Hide'}" onclick="window.__toggleHide('${prefix}',${i})">${item.is_hidden?'\u{1F441}':'⊘'}</button>
+      <button class="icon-btn" title="Delete" onclick="window.__openDelete('${prefix}',${i})">🗑</button>`;
   /* Round 12: Code column renders first (leftmost) when shown — was second after Name. */
   return `<tr class="${rowCls}">
     ${numCell}
@@ -862,12 +863,7 @@ function mgmtUnifiedRow(prefix, item, i){
     ${typeCell}
     <td class="linecol">${taxLineCell}</td>
     ${balanceCell}
-    <td class="row-actions" style="white-space:nowrap">
-      <button class="icon-btn" title="Edit" onclick="window.__openEdit('${prefix}',${i})">✎</button>
-      <button class="icon-btn" title="${item.is_hidden?'Show':'Hide'}" onclick="window.__toggleHide('${prefix}',${i})">${item.is_hidden?'\u{1F441}':'⊘'}</button>
-      <button class="icon-btn" title="Delete" onclick="window.__openDelete('${prefix}',${i})">🗑</button>
-      <button class="icon-btn" title="Merge" onclick="window.__openMerge('${prefix}',${i})">⇄</button>
-    </td>
+    <td class="row-actions" style="white-space:nowrap">${actions}</td>
   </tr>`;
 }
 function renderMgmt(){
@@ -906,7 +902,7 @@ function renderMgmt(){
   const chips = [
     ['all', 'Show All'],
     ['expenses', 'Expenses'],
-    ['revenue', 'Revenue'],
+    ['revenue', 'Income'],
     ['ale', 'Assets/Liabilities/Equity']
   ];
   const chipRow = chips.map(([k,lbl]) => `<button class="chip ${filter===k?'chip-on':''}" onclick="state.catFilter='${k}';render()">${lbl}</button>`).join('');
@@ -942,7 +938,7 @@ function renderMgmt(){
       </table>
     </div>`;
 
-  const title = `Categories${filter==='expenses'?' — Expenses':filter==='revenue'?' — Revenue':filter==='ale'?' — Assets / Liabilities / Equity':''}`;
+  const title = `Categories${filter==='expenses'?' — Expenses':filter==='revenue'?' — Income':filter==='ale'?' — Assets / Liabilities / Equity':''}`;
   $('#root').innerHTML = topbar(title,['Books','Categories']) + `<div class="box" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:var(--shadow)">${html}</div>`;
   refreshBadge();
 }
@@ -1014,6 +1010,57 @@ window.__openModal = (title, body, buttons) => {
   $('#modalBack').classList.add('open');
 };
 window.closeModal = ()=>$('#modalBack').classList.remove('open');
+window.__openManualEntry = ()=>{
+  // v2 manual entry per D62-D66: Account + Change + Other account.
+  // Sign convention (D63): positive = picked Account went up; negative = it went down.
+  // Label adapts to picked Account's type (D64).
+  // No drafts (D65). Single Save button.
+  const opts = accountOptionList();
+  const updateChangeLabel = ()=>{
+    const sel = document.getElementById('je-account');
+    const opt = sel && sel.options[sel.selectedIndex];
+    const t = opt ? opt.getAttribute('data-type') : 'Expense';
+    const labels = { Expense:'Amount', Income:'Amount', Asset:'Change in balance', Liability:'Change in balance', Equity:'Change' };
+    const lbl = document.getElementById('je-change-label');
+    if(lbl) lbl.textContent = labels[t] || 'Amount';
+  };
+  const onAccountChange = ()=>{ updateChangeLabel(); };
+  window.__openModal('New entry', `
+    <div class="infobox" style="margin-bottom:12px">Pick the account that changed, type the amount (positive = it went up, negative = it went down), and pick where the money came from or went to. The system handles the balanced ledger entry behind the scenes — no debits or credits to think about.</div>
+    <div style="display:grid;grid-template-columns:160px 1fr;gap:10px 12px;align-items:end">
+      <div>
+        <label>Date</label>
+        <input type="date" id="je-date" value="2026-07-11">
+      </div>
+      <div style="grid-column:1 / -1">
+        <label>Account</label>
+        <select id="je-account" onchange="(${onAccountChange.toString()})()">${opts}</select>
+        <div class="help">The account that changed. Type a positive amount if it went up, negative if it went down.</div>
+      </div>
+      <div>
+        <label id="je-change-label">Amount</label>
+        <input type="text" id="je-change" inputmode="decimal" placeholder="0.00" value="250.00">
+        <div class="help">Positive = this account went up. Negative = it went down.</div>
+      </div>
+      <div>
+        <label>Description</label>
+        <input type="text" id="je-desc" placeholder="What happened?" value="Owner draw adjustment">
+      </div>
+      <div style="grid-column:1 / -1">
+        <label>Other account</label>
+        <select id="je-other">${opts}</select>
+        <div class="help">The other side of the entry. Defaults to your default cash account from Setup Wizard.</div>
+      </div>
+      <div style="grid-column:1 / -1">
+        <label>Notes</label>
+        <textarea id="je-note" rows="2" placeholder="Optional internal note"></textarea>
+      </div>
+    </div>
+    <div class="softwarn" style="margin-top:12px">This is a manual accounting adjustment. Most day-to-day entries should come from invoices, bills, payments, and statement imports.</div>
+  `, [{Cancel:'closeModal()'}, {Save:'closeModal()'}]);
+  // Set initial label based on first account's type.
+  setTimeout(updateChangeLabel, 0);
+};
 window.__openAdd = (kind)=>{
   /* Round 8: Type is LOCKED in the wizard context (other options greyed out). Only the Categories section
      (outside the wizard) lets the user pick freely. `kind` is the calling wizard step ('expense'|'income'|'other'). */
@@ -1117,6 +1164,13 @@ window.__openEdit = (prefix,i)=>{
   const lineOptions = typeFromPrefix==='Income' ? IRS_INCOME_LINES : IRS_EXPENSE_LINES;
   const opts = isOther || typeFromPrefix==='Asset' || typeFromPrefix==='Liability' || typeFromPrefix==='Equity' ? '' : lineOptions.map(l=>`<option value="${l.id}" ${item.line===l.id?'selected':''}>${l.label} — ${l.desc}</option>`).join('');
   const typeOpts = ['Expense','Income','Asset','Liability','Equity'].map(t=>`<option value="${t}" ${t===typeFromPrefix?'selected':''} ${inWizard?'disabled':''}>${t}</option>`).join('');
+  const buttons = item.system
+    ? [{Close: 'closeModal();'}]
+    : [
+      {Cancel: 'closeModal();'},
+      {'Merge and Delete…': `closeModal(); window.__openMerge('${prefix}',${i});`},
+      {Save: `window.__commitEdit('${prefix}',${i});`}
+    ];
   window.__openModal('Edit account', `
     <label>Type ${inWizard?'<span class="help" style="margin:0"> (locked — wizard context)</span>':''}</label>
     <select id="edit-type" ${inWizard?'disabled':''} onchange="window.__editType=this.value; window.__rebuildEditLine()">${typeOpts}</select>
@@ -1133,10 +1187,7 @@ window.__openEdit = (prefix,i)=>{
     ` : ''}
     <label>Notes</label>
     <textarea id="edit-note" rows="2" placeholder="What is this category used for? (e.g. Dues paid to local trade association)">${esc(item.note || '')}</textarea>
-  `, [
-    {Cancel: 'closeModal();'},
-    {Save: `window.__commitEdit('${prefix}',${i});`}
-  ]);
+  `, buttons);
 };
 /* re-render the line dropdown if user changes Type in management mode */
 window.__rebuildEditLine = ()=>{
@@ -1188,13 +1239,13 @@ window.__openMerge = (prefix,i)=>{
   const arr = prefix==='expenses'?state.expenses:prefix==='income'?state.income:state.other;
   const item = arr[i];
   const others = arr.filter((x,k)=>k!==i).map(o=>`<option>${esc(o.name)}</option>`).join('');
-  window.__openModal('Merge categories', `
-    <p>All transactions on <em>${esc(item.name)}</em> will be moved to the destination. Same account type required. This can't be undone.</p>
+  window.__openModal('Merge and Delete category', `
+    <p>All transactions on <em>${esc(item.name)}</em> will be moved to the destination category, then <em>${esc(item.name)}</em> will be deleted. Same account type required. This can't be undone.</p>
     <label>Source</label>
     <input type="text" value="${esc(item.name)}" disabled>
     <label>Destination</label>
     <select>${others}</select>
-  `, [{Cancel:'closeModal()'}, {Merge:`closeModal();`}]);
+  `, [{Cancel:'closeModal()'}, {'Merge and Delete':`closeModal();`}]);
 };
 
 /* ---- DASHBOARD / SETTINGS / ROUTING ---- */
@@ -1204,11 +1255,44 @@ function renderDashboard(){
     <p>You're set up. Quick links:</p>
     <ul>
       <li><a href="#" onclick="state.screen='setup';render()">Run setup wizard →</a></li>
-      <li><a href="#" onclick="state.screen='mgmt';state.activeTab='expenses';render()">Categories — Expenses</a> <span class="pill warn">${state.reviewLaterTxnCount} on Review Later</span></li>
+      <li><a href="#" onclick="state.screen='mgmt';state.catFilter='expenses';render()">Categories — Expenses</a> <span class="pill warn">${state.reviewLaterTxnCount} on Review Later</span></li>
       <li><a href="#" onclick="state.screen='settings';render()">Settings</a></li>
     </ul>
     <div class="infobox">Review Later badge in the sidebar shows outstanding auto-categorization items. Move them to the right category from the Categorize UI.</div>
   </div>`;
+  refreshBadge();
+}
+function renderLedger(){
+  const rows = LEDGER_ROWS.map(r => `<tr>
+    <td class="nowrap">${esc(r.date)}</td>
+    <td><span class="pill">${esc(r.type)}</span></td>
+    <td>${esc(r.name)}</td>
+    <td class="right nowrap">${fmtAmount(r.amount)}</td>
+    <td>${esc(r.description)}</td>
+    <td>${esc(accountLabel(r.category))}</td>
+    <td>${esc(accountLabel(r.matched))}</td>
+    <td>${r.recon==='reconciled'?'<span class="pill system">Reconciled</span>':r.recon==='in-progress'?'<span class="pill warn">In progress</span>':'<span class="muted">—</span>'}</td>
+  </tr>`).join('');
+  $('#root').innerHTML = topbar('General Ledger',['Books','General Ledger']) + `
+    <div class="ledger-summary">
+      <div class="metric"><div class="label">Entries this month</div><div class="value">${LEDGER_ROWS.length}</div></div>
+      <div class="metric"><div class="label">Unbalanced entries</div><div class="value">0</div></div>
+      <div class="metric"><div class="label">User action needed</div><div class="value">None</div></div>
+    </div>
+    <div class="box" style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:var(--shadow)">
+      <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px">
+        <div>
+          <h2 style="margin:0 0 4px">Every money event, balanced behind the scenes</h2>
+          <p class="help" style="margin:0;max-width:720px">Virta creates ledger entries automatically from invoices, bills, payments, bank imports, and manual journals. Most users never need to edit this page; it is here when you or an accountant needs to inspect the accounting record.</p>
+        </div>
+        <button onclick="window.__openManualEntry()">New entry</button>
+      </div>
+      <div class="infobox" style="margin-bottom:14px">Account codes, normal balances, and income/loss rollup stay behind the scenes. The user-facing concepts remain invoices, bills, payments, categories, and statements.</div>
+      <table class="cat-table ledger-table">
+        <thead><tr><th style="width:100px">Date</th><th style="width:92px">Type</th><th>Name</th><th class="right" style="width:110px">Amount</th><th>Description</th><th>Category</th><th>Matched with</th><th style="width:110px">Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
   refreshBadge();
 }
 function renderSettings(){
@@ -1321,6 +1405,7 @@ function render(){
   if(s==='cats') return renderCats();
   if(s==='mgmt') return renderMgmt();
   if(s==='dashboard') return renderDashboard();
+  if(s==='ledger') return renderLedger();
   if(s==='settings') return renderSettings();
   renderSettings();
 }
@@ -1329,10 +1414,7 @@ document.addEventListener('click', (e)=>{
   if(!a) return;
   e.preventDefault();
   const k = a.getAttribute('data-screen');
-  if(k==='income'){ state.screen='mgmt'; state.catFilter='revenue'; }
-  else if(k==='expenses'){ state.screen='mgmt'; state.catFilter='expenses'; }
-  else if(k==='other'){ state.screen='mgmt'; state.catFilter='ale'; }
-  else { state.screen = k; }
+  state.screen = k;
   render();
 });
 window.addEventListener('DOMContentLoaded', render);
