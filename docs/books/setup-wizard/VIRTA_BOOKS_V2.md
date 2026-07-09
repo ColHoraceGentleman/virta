@@ -40,7 +40,7 @@
 |---|---|---|---|---|
 | Wireframe | `WIREFRAMES.html` | 1425 | ~88 KB | Single-file SPA. Open in browser, click around. Includes General Ledger page (Phase 1). |
 | Spec | `SETUP_AND_CATEGORIES.md` | 868 | ~56 KB | 67 decisions (D1–D67), 38 behavior IDs in §13, §10A formal schema, GL columns locked (D59). |
-| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~670 | — | **221/221 passing** as of round 17 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
+| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~680 | — | **232/232 passing** as of round 18 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
 
 **Feedback archive** in same folder:
 - `FEEDBACK-wireframes-2026-07-08.md` (round 1)
@@ -133,4 +133,5 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 | 2026-07-08 23:05 MDT | Phase 1 design complete (D51–D67, §10A, GL skeleton, D62 manual-entry modal). Wireframe + spec updated; smoke test 191/191 (pre-cleanup). | (uncommitted) |
 | 2026-07-09 10:38 MDT | Phase 1 cleanup (round 15): spec dedupe of D29–D32/D43–D49; wireframe removed `state.activeTab` + dead `catFilter='revenue'/'ale'` router; smoke test moved into repo, 2 stale D61-assertions fixed + 11 new D62/D63/D64/D65 assertions + 11 dedupe/cleanup assertions. Smoke 216/216. | `23b2469` |
 | 2026-07-09 11:10 MDT | Round 16: sidebar **General Ledger** link renamed to **Transactions** (D68). Functionally unchanged — `renderLedger()` still backs the page; only the user-facing nav label changed. Smoke 218/218. | `157bce0` |
-| 2026-07-09 11:12 MDT | Round 17: default landing screen is **Dashboard** (D69), not Settings. Sidebar active-state moved accordingly. Smoke 221/221. | (pending) |
+| 2026-07-09 11:12 MDT | Round 17: default landing screen is **Dashboard** (D69), not Settings. Sidebar active-state moved accordingly. Smoke 221/221. | `04e8636` |
+| 2026-07-09 11:35 MDT | Round 18: manual-entry modal gets a **Type picker as the first field** (D62, D64 revised). Type filters the Account list and drives the Change label + helper copy. Sign convention D63 unchanged. Smoke 232/232. | (pending) |
