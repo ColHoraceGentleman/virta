@@ -613,7 +613,7 @@ check('(P1) Ledger page keeps accounting concepts behind the scenes', ledgerHtml
 window.__openManualEntry();
 const manualEntryModal = $('#modal').innerHTML;
 check('(P1) New manual entry opens "New entry" modal (D62)', manualEntryModal.includes('New entry'));
-check('(P1) Manual entry modal has Date, Type, Category, [Amount], Name, Description, Matched with, Notes fields (D62, D59 column-name consistency: R22 aligns Account → Category, R23 adds Name to match GL column; "Change" is not a field — it is part of the type-aware Amount label for Asset/Liability/Equity)', ['Date','Type','Category','Name','Description','Matched with','Notes'].every(label => manualEntryModal.includes(label)));
+check('(P1/R26) Manual-entry default view has 5 fields: Date, Type, Category, Name, Amount (D62 revised R26: Description / Matched with / Notes are collapsed behind FreshBooks-style "+ Add X" links, not in the default view)', ['Date','Type','Category','Name','Amount'].every(label => manualEntryModal.includes(`<label>${label}</label>`)) && /<label>Amount<\/label>/.test(manualEntryModal));
 check('(P1) Manual entry modal avoids debit/credit labels', !/>Debit</i.test(manualEntryModal) && !/>Credit</i.test(manualEntryModal) && !/Debit\s*\/\s*Credit/i.test(manualEntryModal));
 check('(P1) Manual entry modal explains balanced ledger entry happens behind the scenes', manualEntryModal.includes('balanced ledger entry behind the scenes'));
 check('(P1) Manual entry modal has only Save (no Save draft / Post entry split) (D65)', !/Save draft|Post entry/.test(manualEntryModal));
@@ -648,13 +648,116 @@ window.__jeRenderBody('Asset');
 const assetBody = $('#modal').innerHTML;
 check('(R24) Switching Type to Asset keeps Amount label as "Amount"', /<label>Amount<\/label>/.test(assetBody));
 check('(R24) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
-check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
+// R19 moved to the R26 block: Description field is collapsed by default, so the placeholder check now runs after expanding.
 check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
 check('(R23) Name field has a placeholder with examples (vendor/customer) and is optional', /id="je-name"[^>]*placeholder="[^"]*"/.test(manualEntryModal) && !/id="je-name"[^>]*value=/.test(manualEntryModal) && /vendor/i.test(manualEntryModal) && /customer/i.test(manualEntryModal));
 check('(R20) Manual-entry modal does NOT pre-fill Change (no stale value=)', /id="je-change"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-change"[^>]*value=/.test(manualEntryModal));
 check('(R20) Manual-entry modal defaults Date to today (computed at modal open), not a stale literal (R20 Patrick call: Date defaults to current date; Change + Description + Matched with are blank)', /id="je-date"[^>]*value="\d{4}-\d{2}-\d{2}"/.test(manualEntryModal));
 check('(R20) Modal HTML has no "250.00" or "2026-07-11" defaults left over', !/value="250\.00"/.test(manualEntryModal) && !/value="2026-07-11"/.test(manualEntryModal));
 check('(R20) Type field IS pre-filled with "Expense" (the one exception per Patrick 2026-07-09)', /<option value="Expense" selected="">Expense<\/option>/.test(manualEntryModal));
+
+// --- Round 26: Manual-entry modal redesign (FreshBooks + Add X + Sage warning + Save and new) ---
+// (D62 revised: default view = 5 fields; Description / Matched with / Notes collapsed behind + Add X)
+// Re-open the modal in a clean state to avoid contamination from the R24 type-switching above.
+window.closeModal();
+window.__openManualEntry();
+const mev26 = $('#modal').innerHTML;
+
+// 1. The 5 default-view field labels are present as <label> elements in the DOM.
+check('(R26/D62-revised) Manual-entry default view has 5 visible fields: Date, Type, Category, Name, Amount',
+  ['Date','Type','Category','Name','Amount'].every(l => mev26.includes(`<label>${l}</label>`)));
+
+// 2-4. The three "+ Add X" links are present in the default-view HTML.
+check('(R26) "+ Add description" link is present in the default view', mev26.includes('+ Add description'));
+check('(R26) "+ Add Matched with" link is present in the default view', mev26.includes('+ Add Matched with'));
+check('(R26) "+ Add note" link is present in the default view', mev26.includes('+ Add note'));
+
+// Helper for style assertions (getComputedStyle isn't a Node global; it's on jsdom's window object).
+const isHidden = el => !el || window.getComputedStyle(el).display === 'none';
+const isVisible = el => el && window.getComputedStyle(el).display !== 'none';
+
+// 5. The three optional field wrappers are NOT visible at modal-open (display:none on the wrapper).
+const descFieldAtOpen     = $('#je-desc-field');
+const matchedFieldAtOpen  = $('#je-matched-field');
+const noteFieldAtOpen     = $('#je-note-field');
+check('(R26) Description / Matched with / Notes fields are NOT visible at modal-open (display:none on wrapper)',
+  isHidden(descFieldAtOpen) && isHidden(matchedFieldAtOpen) && isHidden(noteFieldAtOpen));
+
+// 6. Save and new button is in the footer with the right onclick handler.
+check('(R26/D71) Footer has Save and new button calling __jeSave(true)',
+  /<button[^>]*onclick="window\.__jeSave\(true\)"/.test(mev26));
+
+// 7. Save button has class="primary" (per the __openModal convention: label matches /primary/i).
+check('(R26) Save button has class="primary" and calls __jeSave(false)',
+  /<button[^>]*class="primary"[^>]*onclick="window\.__jeSave\(false\)"/.test(mev26));
+
+// 8. Cancel button is in the footer.
+check('(R26) Footer has Cancel button calling closeModal()',
+  /<button[^>]*onclick="closeModal\(\)"/.test(mev26));
+
+// 9. Clicking "+ Add description" expands the Description field with its input + helper.
+window.__jeToggleField('desc', true);
+const mevAfterDescExpand = $('#modal').innerHTML;
+const descFieldExpanded  = $('#je-desc-field');
+const descInput          = $('#je-desc');
+check('(R26) Clicking + Add description shows the Description field with placeholder + helper',
+  isVisible(descFieldExpanded) &&
+  descInput && descInput.getAttribute('placeholder') && descInput.getAttribute('placeholder').length > 0 &&
+  mevAfterDescExpand.includes('Optional, but useful for finding this entry later.'));
+
+// 10. After expanding Description, a "remove" link is visible inside the field wrapper.
+const descRemoveLink = descFieldExpanded ? descFieldExpanded.querySelector('button.je-remove-link') : null;
+check('(R26) After expanding Description, a "remove" link is visible inside the field wrapper',
+  isVisible(descRemoveLink));
+
+// (R19 moved here) Description field has a placeholder, not a pre-filled value, and no stale "Owner draw adjustment" default.
+check('(R19 moved to R26) Description field has a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)',
+  descInput && /placeholder="[^"]+"/.test(descInput.outerHTML) &&
+  !/value=/.test(descInput.outerHTML) &&
+  !mevAfterDescExpand.includes('Owner draw adjustment'));
+
+// 11. Clicking remove collapses Description back to its + Add description link.
+window.__jeToggleField('desc', false);
+const descFieldAfterCollapse = $('#je-desc-field');
+const descLinkWrapAfterCollapse = $('#je-desc-link-wrap');
+check('(R26) Clicking remove collapses Description back to its + Add description link',
+  isHidden(descFieldAfterCollapse) &&
+  isVisible(descLinkWrapAfterCollapse) &&
+  $('#modal').innerHTML.includes('+ Add description'));
+
+// 12. After expanding Matched with, the Account dropdown is populated with all non-system accounts.
+window.__jeToggleField('matched', true);
+const mevAfterMatchedExpand = $('#modal').innerHTML;
+const matchedSelectOpts = (mevAfterMatchedExpand.match(/<select id="je-other"[\s\S]*?<\/select>/) || [''])[0];
+const matchedOptionCount = (matchedSelectOpts.match(/<option/g) || []).length;
+check('(R26) After expanding Matched with, the Account dropdown is populated with all accounts (>=10 options)',
+  matchedOptionCount >= 10, `got ${matchedOptionCount} options`);
+
+// 13. Initially (no account picked), the Sage warning is hidden.
+const warnAtOpen = $('#je-matched-warn');
+check('(R26/D70) Initially (no account picked), the Sage warning under Matched with is hidden',
+  isHidden(warnAtOpen));
+
+// 14. Picking an import-driven account (Business Checking) shows the Sage warning with the right copy.
+window.__jeCheckMatched('Business Checking');
+const warnAfterBank = $('#je-matched-warn');
+check('(R26/D70) Picking an import-driven account (Business Checking) shows the Sage warning mentioning "statement imports" and "reconcile"',
+  isVisible(warnAfterBank) &&
+  warnAfterBank.textContent.includes('Heads up') &&
+  warnAfterBank.textContent.includes('statement imports') &&
+  warnAfterBank.textContent.includes('reconcile'));
+
+// 15. Picking a non-import account hides the warning.
+window.__jeCheckMatched('Office Supplies');
+const warnAfterNonImport = $('#je-matched-warn');
+check('(R26/D70) Picking a non-import account (Office Supplies) hides the Sage warning',
+  isHidden(warnAfterNonImport));
+
+// 16 (bonus). Other import-driven token names also trigger the warning (Stripe / PayPal / Bank).
+window.__jeCheckMatched('Stripe');
+const warnAfterStripe = $('#je-matched-warn');
+check('(R26/D70) "Stripe" account also triggers the Sage warning',
+  isVisible(warnAfterStripe));
 
 state.screen = 'mgmt';
 state.catFilter = 'all';

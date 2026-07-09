@@ -64,6 +64,13 @@
   .help{font-size:12px;color:var(--muted);margin-top:4px}
   .softwarn{background:var(--warn-soft);color:var(--warn);border-radius:7px;padding:10px 12px;font-size:13px;margin:8px 0 4px}
   .infobox{background:var(--info-soft);color:var(--info);border-radius:7px;padding:10px 12px;font-size:13px;margin:8px 0 4px}
+  /* Round 26: FreshBooks-style "+ Add X" link + remove link + field-header row for manual-entry modal */
+  .je-add-link{font-size:12.5px;color:var(--info);cursor:pointer;margin:4px 0 0;background:none;border:0;padding:0;text-align:left;display:inline-block;font-family:inherit}
+  .je-add-link:hover{text-decoration:underline}
+  .je-remove-link{font-size:12px;color:var(--muted);cursor:pointer;background:none;border:0;padding:0;font-family:inherit}
+  .je-remove-link:hover{color:var(--ink-soft);text-decoration:underline}
+  .je-field-head{display:flex;justify-content:space-between;align-items:flex-end;margin-top:4px;gap:12px}
+  .je-field-head label{margin:0}
   .radios{display:flex;gap:12px;flex-wrap:wrap}
   .radio-card{flex:1;min-width:220px;border:1px solid var(--line-strong);border-radius:9px;padding:12px 14px;cursor:pointer;background:#fff}
   .radio-card.selected{border-color:var(--accent);background:var(--accent-soft)}
@@ -1021,7 +1028,11 @@ window.__openManualEntry = ()=>{
   // which (a) filters the Account dropdown to that type and (b) sets the
   // Change label + helper copy to the right wording for that type.
   // Sign convention (D63): positive = the picked Account went up; negative = it went down.
-  // No drafts (D65). Single Save button.
+  // Round 26 (D62 revised): default view shows 5 fields (Date, Type, Category, Name, Amount).
+  // Description / Matched with / Notes collapse behind FreshBooks-style "+ Add X" links.
+  // Sage-style yellow warning fires when the user picks an import-driven account for Matched with (D70).
+  // Save and new (D71) resets the form and keeps the modal open; Save closes the modal.
+  // Phase 2 GL architecture will implement real posting; __jeSave is a placeholder for now.
   const typeOptions = ['Expense','Income','Asset','Liability','Equity'];
   const accountOptionsFor = (type) => {
     const all = accountOptionList({filterType: type});
@@ -1072,29 +1083,111 @@ window.__openManualEntry = ()=>{
       <div>
         <label>Amount</label>
         <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
-        <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
+        <div class="help" id="je-change-help">Positive = ${labelsFor(initialType).pos}. Negative = ${labelsFor(initialType).neg}.</div>
       </div>
-      <div>
-        <label>Description</label>
+      <div id="je-desc-link-wrap">
+        <button type="button" class="je-add-link" id="je-desc-link" onclick="window.__jeToggleField('desc', true)">+ Add description</button>
+      </div>
+      <div id="je-desc-field" style="display:none">
+        <div class="je-field-head">
+          <label>Description</label>
+          <button type="button" class="je-remove-link" onclick="window.__jeToggleField('desc', false)">remove</button>
+        </div>
         <input type="text" id="je-desc" placeholder="e.g. Office supplies from Amazon, customer refund, paid credit card">
         <div class="help">Optional, but useful for finding this entry later.</div>
       </div>
-      <div>
-        <label>Matched with</label>
-        <select id="je-other">${accountOptionList()}</select>
-        <div class="help">The other side of the entry — the account that moved in the opposite direction. Defaults to your default cash account from Setup Wizard.</div>
+      <div id="je-matched-link-wrap">
+        <button type="button" class="je-add-link" id="je-matched-link" onclick="window.__jeToggleField('matched', true)">+ Add Matched with</button>
       </div>
-      <div>
-        <label>Notes <span class="muted small">(internal only)</span></label>
+      <div id="je-matched-field" style="display:none">
+        <div class="je-field-head">
+          <label>Matched with</label>
+          <button type="button" class="je-remove-link" onclick="window.__jeToggleField('matched', false)">remove</button>
+        </div>
+        <select id="je-other" onchange="window.__jeCheckMatched(this)">${accountOptionList()}</select>
+        <div class="help">The other side of the entry — the account that moved in the opposite direction. Defaults to your default cash account from Setup Wizard.</div>
+        <div class="softwarn" id="je-matched-warn" style="display:none;margin-top:8px"><strong>Heads up:</strong> This account is usually updated by statement imports. A manual entry will create a separate transaction that you will need to reconcile against the import later.</div>
+      </div>
+      <div id="je-note-link-wrap">
+        <button type="button" class="je-add-link" id="je-note-link" onclick="window.__jeToggleField('note', true)">+ Add note</button>
+      </div>
+      <div id="je-note-field" style="display:none">
+        <div class="je-field-head">
+          <label>Notes <span class="muted small">(internal only)</span></label>
+          <button type="button" class="je-remove-link" onclick="window.__jeToggleField('note', false)">remove</button>
+        </div>
         <textarea id="je-note" rows="2" placeholder="Optional internal note"></textarea>
         <div class="help">Not shown in the GL table. Only visible when you open transaction details.</div>
       </div>
     </div>
     <div class="softwarn" style="margin-top:12px">This is a manual accounting adjustment. Most day-to-day entries should come from invoices, bills, payments, and statement imports.</div>
-  `, [{Cancel:'closeModal()'}, {Save:'closeModal()'}]);
+  `, [
+    {'Save and new':'window.__jeSave(true)'},
+    {'Cancel':'closeModal()'},
+    {'Save (primary)':'window.__jeSave(false)'}
+  ]);
   // Expose renderer so the onchange above can call it
   window.__jeRenderBody = (t)=> render(t);
   // No setTimeout needed: initial Category options are inlined in the template above.
+};
+/* Round 26: show/hide one of the optional collapsed fields (desc | matched | note).
+   The `+ Add X` link toggles the field in; the per-field `remove` link toggles it out.
+   `__jeToggleField('matched', true)` also fires the Sage warning check. */
+window.__jeToggleField = (field, show)=>{
+  const fieldEl = document.getElementById(`je-${field}-field`);
+  const linkEl  = document.getElementById(`je-${field}-link`);
+  const wrapEl  = document.getElementById(`je-${field}-link-wrap`);
+  if (show) {
+    if (fieldEl) fieldEl.style.display = '';
+    if (wrapEl) wrapEl.style.display = 'none';
+    if (linkEl) linkEl.style.display = 'none';
+    if (field === 'matched') {
+      const sel = document.getElementById('je-other');
+      window.__jeCheckMatched(sel);
+    }
+  } else {
+    if (fieldEl) fieldEl.style.display = 'none';
+    if (wrapEl) wrapEl.style.display = '';
+    if (linkEl) linkEl.style.display = '';
+    const warnEl = document.getElementById('je-matched-warn');
+    if (warnEl) warnEl.style.display = 'none';
+  }
+};
+/* Round 26 (D70): Sage-style contextual warning for import-driven Matched-with accounts.
+   Accepts either the select element (from onchange) or a raw string value.
+   Tokens are matched case-insensitive against the account name. */
+window.__jeCheckMatched = (arg)=>{
+  let value = '';
+  if (typeof arg === 'string') value = arg;
+  else if (arg && typeof arg.value === 'string') value = arg.value;
+  const warnEl = document.getElementById('je-matched-warn');
+  if (!warnEl) return;
+  const tokens = ['credit card','checking','savings','bank','stripe','paypal','venmo','square','plaid','import'];
+  const lower = (value || '').toLowerCase();
+  const isImport = !!lower && tokens.some(t => lower.includes(t));
+  warnEl.style.display = isImport ? '' : 'none';
+};
+/* Round 26 (D71): Save handler. Placeholder until Phase 2 GL architecture lands.
+   - keepOpen=true: posts (no-op for now), resets form fields, collapses optional fields, leaves modal open.
+   - keepOpen=false: posts (no-op for now), closes the modal. */
+window.__jeSave = (keepOpen)=>{
+  if (keepOpen) {
+    const setVal = (id, v)=>{ const el = document.getElementById(id); if (el) el.value = v; };
+    setVal('je-change', '');
+    setVal('je-name', '');
+    setVal('je-desc', '');
+    setVal('je-other', '');
+    setVal('je-note', '');
+    /* Collapse optional fields back to their + Add X links. */
+    window.__jeToggleField('desc', false);
+    window.__jeToggleField('matched', false);
+    window.__jeToggleField('note', false);
+    /* Refocus the first field for fast next-entry typing. */
+    const date = document.getElementById('je-date');
+    if (date) date.focus();
+  } else {
+    closeModal();
+  }
 };
 window.__openAdd = (kind)=>{
   /* Round 8: Type is LOCKED in the wizard context (other options greyed out). Only the Categories section

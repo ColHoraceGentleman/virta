@@ -38,9 +38,9 @@
 
 | Artifact | Path | Lines | Bytes | Notes |
 |---|---|---|---|---|
-| Wireframe | `WIREFRAMES.html` | 1425 | ~88 KB | Single-file SPA. Open in browser, click around. Includes General Ledger page (Phase 1). |
-| Spec | `SETUP_AND_CATEGORIES.md` | 868 | ~56 KB | 67 decisions (D1–D67), 38 behavior IDs in §13, §10A formal schema, GL columns locked (D59). |
-| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~680 | — | **238/238 passing** as of round 20 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
+| Wireframe | `WIREFRAMES.html` | 1554 | ~97 KB | Single-file SPA. Open in browser, click around. Includes General Ledger page (Phase 1) + manual-entry modal with FreshBooks `+ Add X` collapse pattern (R26). |
+| Spec | `SETUP_AND_CATEGORIES.md` | 872 | ~64 KB | 71 decisions (D1–D71), 38 behavior IDs in §13, §10A formal schema, GL columns locked (D59). D62 revised + D70/D71 added in R26. |
+| Smoke test | `tests/wf-smoke.mjs` (in repo) | ~810 | — | **255/255 passing** as of round 26 (2026-07-09). Local node_modules in `tests/.deps/` (gitignored) for jsdom. |
 
 **Feedback archive** in same folder:
 - `FEEDBACK-wireframes-2026-07-08.md` (round 1)
@@ -50,6 +50,15 @@
 - `FEEDBACK-wireframes-2026-07-08-rounds-7-14.md`
 - `FEEDBACK-wireframes-2026-07-08-phase1-design.md` (Phase 1, design complete)
 - `FEEDBACK-wireframes-2026-07-09-round15.md` (Phase 1 cleanup)
+- `FEEDBACK-wireframes-2026-07-09-round16.md` (sidebar GL → Transactions)
+- `FEEDBACK-wireframes-2026-07-09-round17.md` (default landing → Dashboard)
+- `FEEDBACK-wireframes-2026-07-09-round18.md` (Type picker first)
+- `FEEDBACK-wireframes-2026-07-09-round19.md` (Description placeholder)
+- `FEEDBACK-wireframes-2026-07-09-round20.md` (clear defaults)
+- `FEEDBACK-wireframes-2026-07-09-round21.md` (Matched with rename)
+- `FEEDBACK-wireframes-2026-07-09-round22-23.md` (Category rename + Name field)
+- `FEEDBACK-wireframes-2026-07-09-round24.md` (Amount label always)
+- `FEEDBACK-wireframes-2026-07-09-round25.md` (modal layout overhaul)
 
 **Disposable artifacts:** `wf-snap-*.{html,png}` in same folder (smoke-test screenshots). Untracked, fine to delete.
 
@@ -143,3 +152,4 @@ These are NOT blockers for v2 design iteration. They're flagged so the next sess
 | 2026-07-09 12:06 MDT | Round 24: manual-entry modal Amount label is now always **"Amount"**. Type-specific copy ("Change in the Asset" etc.) moved entirely to the helper text. Simpler, fewer words to remember. D64 revised. Smoke 239/239. | `db2b202` |
 | 2026-07-09 12:25 MDT | Round 25: manual-entry modal layout overhaul (Patrick feedback). Fixed empty Category dropdown (setTimeout race). Modal body now scrollable with sticky footer (Save button reachable on small viewports). Field order: Date → Type → Category → Name → Amount → Description → Matched with → Notes. Notes labeled "(internal only)". Single-column flex layout. Modal max-height 90vh with overflow-y auto on .body. Smoke 239/239. | (pending) |
 | 2026-07-09 12:30 MDT | Round 26: Lore spawned to research manual-entry UX patterns from QB / Sage / Zoho / Xero / Wave / FreshBooks; output: `research-manual-entry-2026-07-09.md` (in flight). | (in flight) |
+| 2026-07-09 12:55 MDT | Round 26: manual-entry modal redesign per Patrick's "kind of sucks" feedback (post-Lore research). Default view collapsed from 8 fields to **5** (Date, Type, Category, Name, Amount); the other 3 (Description, Matched with, Notes) hide behind FreshBooks-style **`+ Add X`** links with inline **remove** links. New **Save and new** button in the sticky footer (D71) — posts + resets form + keeps modal open. **Sage-style yellow warning** fires under Matched with when the user picks an import-driven account (Credit Card / Checking / Savings / Bank / Stripe / PayPal / Venmo / Square / Plaid / Import) — D70. D62 revised. Smoke 255/255 (+16 new assertions). | (pending) |
