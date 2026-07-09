@@ -648,6 +648,8 @@ window.__jeRenderBody('Asset');
 const assetBody = $('#modal').innerHTML;
 check('(R18) Switching Type to Asset updates Change label to "Change in the Asset" (D64)', assetBody.includes('Change in the Asset'));
 check('(R18) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
+check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
+check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
 
 state.screen = 'mgmt';
 state.catFilter = 'all';
