@@ -1028,11 +1028,11 @@ window.__openManualEntry = ()=>{
   };
   const labelsFor = (type) => {
     return ({
-      Expense: {label:'Amount of Expense', pos:'You spent this much', neg:'You got a refund (or a negative expense)'},
-      Income:  {label:'Amount of Income',  pos:'You earned this much', neg:'You had a reversal'},
-      Asset:   {label:'Change in the Asset', pos:'The asset went up',    neg:'The asset went down'},
-      Liability:{label:'Change in the Liability', pos:'You paid it down', neg:'You took on more debt'},
-      Equity:  {label:'Change in Owner\'s Equity', pos:'Owner took money out', neg:'Owner put money in'},
+      Expense:  {label:'Amount', pos:'You spent this much',  neg:'You got a refund (or a negative expense)'},
+      Income:   {label:'Amount', pos:'You earned this much', neg:'You had a reversal'},
+      Asset:    {label:'Amount', pos:'The asset went up',    neg:'The asset went down'},
+      Liability:{label:'Amount', pos:'You paid it down',     neg:'You took on more debt'},
+      Equity:   {label:'Amount', pos:'Owner took money out', neg:'Owner put money in'},
     })[type] || {label:'Amount', pos:'This account went up', neg:'This account went down'};
   };
   const render = (type) => {
@@ -1065,7 +1065,7 @@ window.__openManualEntry = ()=>{
         <div class="help" id="je-account-help">Only expense accounts are shown. Pick the specific category that changed.</div>
       </div>
       <div>
-        <label id="je-change-label">Amount of Expense</label>
+        <label id="je-change-label">Amount</label>
         <input type="text" id="je-change" inputmode="decimal" placeholder="0.00">
         <div class="help" id="je-change-help">Positive = You spent this much. Negative = You got a refund (or a negative expense).</div>
       </div>

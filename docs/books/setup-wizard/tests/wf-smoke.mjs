@@ -622,32 +622,32 @@ const typePos = manualEntryModal.indexOf('id="je-type"');
 const accountPos = manualEntryModal.indexOf('id="je-account-row"');
 check('(R18) Type picker comes BEFORE the Account row in the manual-entry modal (D62 revised)', typePos > 0 && accountPos > 0 && typePos < accountPos, `typePos=${typePos} accountPos=${accountPos}`);
 check('(R18) Manual entry modal Type dropdown has 5 options: Expense, Income, Asset, Liability, Equity', /value="Expense"/.test(manualEntryModal) && /value="Income"/.test(manualEntryModal) && /value="Asset"/.test(manualEntryModal) && /value="Liability"/.test(manualEntryModal) && /value="Equity"/.test(manualEntryModal));
-check('(R18) Manual entry modal initial Change label is "Amount of Expense" (default Type = Expense, D64)', manualEntryModal.includes('Amount of Expense'));
+check('(R18) Manual entry modal Amount label is just "Amount" (D64 revised R24: type-specific copy moved to helper text only)', manualEntryModal.includes('<label id="je-change-label">Amount</label>'));
 check('(R18) Manual entry modal initial helper copy: "You spent this much" / "You got a refund" (D64 Expense)', manualEntryModal.includes('You spent this much') && manualEntryModal.includes('You got a refund'));
 // Switch the Type to Liability and re-render, then assert label + helper copy updated
 window.__jeRenderBody('Liability');
 const liabilityBody = $('#modal').innerHTML;
-check('(R18) Switching Type to Liability updates Change label to "Change in the Liability" (D64)', liabilityBody.includes('Change in the Liability'));
-check('(R18) Liability helper copy: "You paid it down" / "You took on more debt" (D64)', liabilityBody.includes('You paid it down') && liabilityBody.includes('You took on more debt'));
+check('(R24) Switching Type to Liability keeps Amount label as "Amount" (R24: type-specific copy is only in helper text)', /<label id="je-change-label">Amount<\/label>/.test(liabilityBody));
+check('(R24) Liability helper copy: "You paid it down" / "You took on more debt" (D64)', liabilityBody.includes('You paid it down') && liabilityBody.includes('You took on more debt'));
 // Verify the Account list is filtered to Liability accounts only
 const accountOptsHTML = (liabilityBody.match(/<select id="je-account">[\s\S]*?<\/select>/) || [''])[0];
 const dataTypeAttrs = (accountOptsHTML.match(/data-type="[^"]+"/g) || []).map(s => s.match(/data-type="([^"]+)"/)[1]);
 check('(R18) Account list filtered to Liability only (D62)', dataTypeAttrs.length > 0 && dataTypeAttrs.every(t => t === 'Liability'), `types found: ${dataTypeAttrs.join(', ')}`);
-// Switch to Equity, verify "Change in Owner\'s Equity" + draw / contribute copy
+// Switch to Equity, verify helper copy updates
 window.__jeRenderBody('Equity');
 const equityBody = $('#modal').innerHTML;
-check('(R18) Switching Type to Equity updates Change label to "Change in Owner\\\'s Equity" (D64)', /Change in Owner/.test(equityBody));
-check('(R18) Equity helper copy: "Owner took money out" / "Owner put money in" (D64)', equityBody.includes('Owner took money out') && equityBody.includes('Owner put money in'));
-// Switch to Income, verify "Amount of Income" + earned / reversal copy
+check('(R24) Switching Type to Equity keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(equityBody));
+check('(R24) Equity helper copy: "Owner took money out" / "Owner put money in" (D64)', equityBody.includes('Owner took money out') && equityBody.includes('Owner put money in'));
+// Switch to Income
 window.__jeRenderBody('Income');
 const incomeBody = $('#modal').innerHTML;
-check('(R18) Switching Type to Income updates Change label to "Amount of Income" (D64)', incomeBody.includes('Amount of Income'));
-check('(R18) Income helper copy: "You earned this much" / "You had a reversal" (D64)', incomeBody.includes('You earned this much') && incomeBody.includes('You had a reversal'));
-// Switch to Asset, verify "Change in the Asset" + up / down copy
+check('(R24) Switching Type to Income keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(incomeBody));
+check('(R24) Income helper copy: "You earned this much" / "You had a reversal" (D64)', incomeBody.includes('You earned this much') && incomeBody.includes('You had a reversal'));
+// Switch to Asset
 window.__jeRenderBody('Asset');
 const assetBody = $('#modal').innerHTML;
-check('(R18) Switching Type to Asset updates Change label to "Change in the Asset" (D64)', assetBody.includes('Change in the Asset'));
-check('(R18) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
+check('(R24) Switching Type to Asset keeps Amount label as "Amount"', /<label id="je-change-label">Amount<\/label>/.test(assetBody));
+check('(R24) Asset helper copy: "The asset went up" / "The asset went down" (D64)', assetBody.includes('The asset went up') && assetBody.includes('The asset went down'));
 check('(R19) Description field uses a placeholder, not a pre-filled value (no "Owner draw adjustment" defaults)', /id="je-desc"[^>]*placeholder="[^"]+"/.test(manualEntryModal) && !/id="je-desc"[^>]*value=/.test(manualEntryModal) && !manualEntryModal.includes('Owner draw adjustment'));
 check('(R19) Description placeholder gives helpful examples', manualEntryModal.includes('Office supplies') || manualEntryModal.includes('refund'));
 check('(R23) Name field has a placeholder with examples (vendor/customer) and is optional', /id="je-name"[^>]*placeholder="[^"]*"/.test(manualEntryModal) && !/id="je-name"[^>]*value=/.test(manualEntryModal) && /vendor/i.test(manualEntryModal) && /customer/i.test(manualEntryModal));
