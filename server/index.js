@@ -43,6 +43,17 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Body-parser error handler — express.json() surfaces parse errors (malformed
+// JSON, wrong content-type, body too large) via next(err). The catch-all below
+// would translate these to 500, which is wrong: a client sending bad JSON is a
+// client error. Translate to 400 INVALID_JSON so clients can branch on the code.
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400))) {
+    return res.status(400).json({ error: 'Malformed JSON body', code: 'INVALID_JSON' });
+  }
+  next(err);
+});
+
 // API Routes
 app.use('/api/v1/projects', projectsRouter);
 app.use('/api/v1/columns', columnsRouter);
