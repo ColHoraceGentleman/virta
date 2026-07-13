@@ -67,6 +67,11 @@ router.post('/', (req, res) => {
     if (err.message.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Account code already exists', code: 'CONFLICT' });
     }
+    // Translate the B2a-prime CHECK trigger's RAISE(ABORT, 'irs_line required ...') into
+    // a 400 — the trigger is enforcing a business rule the client should fix, not a server fault.
+    if (/irs_line required/i.test(err.message)) {
+      return res.status(400).json({ error: err.message, code: 'VALIDATION_ERROR' });
+    }
     console.error('[Books/Accounts] create failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
   }
@@ -109,6 +114,11 @@ router.patch('/:id', (req, res) => {
   } catch (err) {
     if (err.message.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Account code already exists', code: 'CONFLICT' });
+    }
+    // Same trigger translation as POST — covers PATCH that renames away from
+    // 'Review Later' without setting irs_line, or that sets irs_line=NULL.
+    if (/irs_line required/i.test(err.message)) {
+      return res.status(400).json({ error: err.message, code: 'VALIDATION_ERROR' });
     }
     console.error('[Books/Accounts] update failed', err);
     res.status(500).json({ error: err.message, code: 'SERVER_ERROR' });
