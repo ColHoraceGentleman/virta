@@ -151,6 +151,8 @@ export const booksApi = {
     if (params.date_to) qs.set('date_to', params.date_to);
     if (params.category_id) qs.set('category_id', params.category_id);
     if (params.name_q) qs.set('name_q', params.name_q);
+    if (params.sort_by) qs.set('sort_by', params.sort_by);
+    if (params.sort_dir) qs.set('sort_dir', params.sort_dir);
     if (params.limit) qs.set('limit', params.limit);
     if (params.offset) qs.set('offset', params.offset);
     const q = qs.toString();

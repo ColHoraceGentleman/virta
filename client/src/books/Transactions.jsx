@@ -3,10 +3,9 @@
 // Columns per D59:
 //   Date | Type | Name | Amount | Description | Category | Matched with | Status
 //
-// Filters per Phase 2 spec:
-//   - Date range (date_from / date_to)
-//   - Category (filter to entries touching the picked account)
-//   - Name (case-insensitive substring match on the entry name)
+// B1a (2026-07-13): pagination + sortable columns + flexible date input + metric
+// tiles removed. Server-side sort whitelist + page/limit/offset already wired
+// in journalService.listEntries() and server/routes/books/journal.js.
 //
 // Audit click-to-reveal modal (D66): clicking the row opens a modal showing
 // "Created by user on YYYY-MM-DD HH:MM" and the full posting detail (the two
@@ -14,7 +13,7 @@
 //
 // Reconciliation status semantics per D59: three placeholders for v1 — empty,
 // in progress, reconciled. Transitions are Phase 9.
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { booksApi } from './api.js';
 import ManualEntryModal from './ManualEntryModal.jsx';
 
@@ -25,9 +24,85 @@ const TYPE_LABELS = {
   invoice_payment: 'Invoice',
 };
 
+// 8 columns the GL table can sort by. Matches the SORTABLE_COLUMNS whitelist
+// in server/services/journalService.js — keep in sync. The 'key' is what we
+// send to the server as `sort_by`. The 'label' is what's shown in the header.
+// (Patrick's call 2026-07-13: any new column added later should be sortable by
+// default — extend this list, then mirror it in the service.)
+const SORTABLE_COLUMNS = [
+  { key: 'txn_date',      label: 'Date',        align: 'left',  width: 'w-24' },
+  { key: 'source',        label: 'Type',        align: 'left',  width: 'w-20' },
+  { key: 'name',          label: 'Name',        align: 'left' },
+  { key: 'amount',        label: 'Amount',      align: 'right', width: 'w-28' },
+  { key: 'description',   label: 'Description', align: 'left' },
+  { key: 'category_code', label: 'Category',    align: 'left' },
+  { key: 'matched_code',  label: 'Matched with',align: 'left' },
+  { key: 'recon_status',  label: 'Status',      align: 'left',  width: 'w-28' },
+];
+
+const PAGE_SIZE = 100; // Patrick's call 2026-07-13: 100 entries per page.
+
 function fmtMoney(n) {
   const v = Number(n || 0);
   return v.toLocaleString('en-US', { style: 'currency', currency: 'USD', signDisplay: 'never' });
+}
+
+// parseFlexibleDate(input) → 'YYYY-MM-DD' string or null on invalid.
+//
+// Accepts US M/D order with optional 2-digit or 4-digit year:
+//   '05/08/2026' → '2026-08-05'
+//   '5/8/26'     → '2026-08-05'   (2-digit year → 20YY)
+//   '05/8/26'    → '2026-08-05'   (mixed single/double digit)
+//   '5/8'        → '2026-08-05'   (auto-fill current year)
+//   '5'          → null           (no day given is invalid; user must give month AND day)
+//   '5/8/abc'    → null
+//   ''           → null           (treat empty as "user is clearing the filter")
+//
+// Per the brief: invalid input leaves the field untouched and does NOT fire
+// a filter. Callers should check for null and only commit the parse result
+// when it succeeds.
+function parseFlexibleDate(input) {
+  if (!input) return null;
+  const trimmed = String(input).trim();
+  if (!trimmed) return null;
+
+  // Strip any surrounding whitespace inside the value. Reject if the user
+  // pasted a full ISO date like '2026-08-05' — we accept M/D form only;
+  // the native picker and filter convention both yield YYYY-MM-DD on the way
+  // out, so we accept that on input too (it's already canonical).
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    if (isValidYmd(Number(y), Number(m), Number(d))) return `${y}-${m}-${d}`;
+    return null;
+  }
+
+  // US M/D[/YY[YY]] — must have month AND day.
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/.exec(trimmed);
+  if (!slashMatch) return null;
+  const month = Number(slashMatch[1]);
+  const day = Number(slashMatch[2]);
+  let year;
+  if (slashMatch[3]) {
+    const raw = slashMatch[3];
+    year = raw.length === 2 ? 2000 + Number(raw) : Number(raw);
+  } else {
+    year = new Date().getFullYear(); // current year for 'M/D' shorthand
+  }
+  if (!isValidYmd(year, month, day)) return null;
+  const mm = String(month).padStart(2, '0');
+  const dd = String(day).padStart(2, '0');
+  return `${year}-${mm}-${dd}`;
+}
+
+function isValidYmd(y, m, d) {
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return false;
+  if (m < 1 || m > 12) return false;
+  if (d < 1 || d > 31) return false;
+  // Construct the date and verify the round-trip — catches Feb 30, Apr 31, etc.
+  // Use UTC to avoid DST/locale shifting the day by one.
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
 function ReconStatusBadge({ status }) {
@@ -38,6 +113,115 @@ function ReconStatusBadge({ status }) {
     return <span className="px-2 py-0.5 rounded-full bg-amber-700/30 border border-amber-700/50 text-amber-300 text-xs">In progress</span>;
   }
   return <span className="text-slate-500 text-xs">—</span>;
+}
+
+// Pagination strip — used at top AND bottom of the table. Layout per
+// Patrick's screenshot: "Go to: [ 3 ] of 12   201-300 of 1187   < First < Previous Next > Last >".
+// Empty when total === 0 (no rows = no controls).
+function PaginationStrip({ page, totalPages, total, pageSize, onPageChange }) {
+  if (!total) return null;
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs text-slate-400 border-b border-slate-700 bg-slate-800/40">
+      <GoToPage page={page} totalPages={totalPages} onPageChange={onPageChange} />
+      <span className="text-slate-500">·</span>
+      <span className="tabular-nums">{start.toLocaleString()}–{end.toLocaleString()} of {total.toLocaleString()}</span>
+      <span className="text-slate-500">·</span>
+      <PagerButtons page={page} totalPages={totalPages} onPageChange={onPageChange} />
+    </div>
+  );
+}
+
+function GoToPage({ page, totalPages, onPageChange }) {
+  const [draft, setDraft] = useState(String(page));
+  // Keep the draft in sync if the parent page changes (e.g. after a filter
+  // resets to page 1). Without this, the input would show a stale value
+  // until the user blurred it.
+  useEffect(() => { setDraft(String(page)); }, [page]);
+
+  function commit() {
+    const n = parseInt(draft, 10);
+    if (!Number.isFinite(n) || n < 1) {
+      // Invalid → snap to 1.
+      onPageChange(1);
+      setDraft('1');
+      return;
+    }
+    if (n > totalPages) {
+      onPageChange(totalPages);
+      setDraft(String(totalPages));
+      return;
+    }
+    onPageChange(n);
+    setDraft(String(n));
+  }
+
+  return (
+    <label className="flex items-center gap-2">
+      <span className="text-slate-500">Go to:</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+        className="w-12 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 text-center tabular-nums focus:outline-none focus:border-indigo-500"
+        aria-label={`Go to page (1 to ${totalPages})`}
+      />
+      <span className="text-slate-500">of <span className="tabular-nums">{totalPages.toLocaleString()}</span></span>
+    </label>
+  );
+}
+
+function PagerButtons({ page, totalPages, onPageChange }) {
+  // Disabled state per the brief: "light grey, no underline, no hover" — the
+  // tailwind `disabled:` utilities already do this for text + cursor.
+  const BtnClass = "text-indigo-300 hover:text-indigo-100 hover:underline disabled:text-slate-600 disabled:no-underline disabled:cursor-not-allowed disabled:hover:text-slate-600";
+  return (
+    <div className="flex items-center gap-3">
+      <button type="button" disabled={page <= 1} onClick={() => onPageChange(1)} className={BtnClass}>‹ First</button>
+      <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} className={BtnClass}>‹ Previous</button>
+      <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} className={BtnClass}>Next ›</button>
+      <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(totalPages)} className={BtnClass}>Last ›</button>
+    </div>
+  );
+}
+
+// Sortable header cell. Visual per the brief:
+//   - active asc  → ▲
+//   - active desc → ▼
+//   - inactive    → faint ↕ on hover only
+function SortHeader({ col, sortBy, sortDir, onSortChange }) {
+  const isActive = sortBy === col.key;
+  let arrow = null;
+  let ariaSort = 'none';
+  if (isActive) {
+    arrow = sortDir === 'asc' ? '▲' : '▼';
+    ariaSort = sortDir === 'asc' ? 'ascending' : 'descending';
+  }
+  const thBase = `${col.align === 'right' ? 'text-right' : 'text-left'} ${col.width || ''} px-3 py-2 select-none`;
+  return (
+    <th
+      scope="col"
+      aria-sort={ariaSort}
+      className={`${thBase} cursor-pointer text-slate-400 hover:text-slate-200 group`}
+      onClick={() => onSortChange(col.key)}
+      title="Click to sort: asc → desc → default"
+    >
+      <span className="inline-flex items-center gap-1">
+        <span>{col.label}</span>
+        <span
+          aria-hidden="true"
+          className={`text-[10px] leading-none ${isActive ? 'text-indigo-300' : 'text-slate-600 opacity-0 group-hover:opacity-100'}`}
+        >
+          {arrow || '↕'}
+        </span>
+      </span>
+    </th>
+  );
 }
 
 function AuditModal({ entry, onClose }) {
@@ -143,6 +327,11 @@ export default function Transactions({ navigate }) {
   const [error, setError] = useState('');
 
   const [accounts, setAccounts] = useState([]);
+  // Date filter inputs are kept as user-typed strings so partial typing like
+  // '5/' doesn't immediately revert. parseFlexibleDate() is only called on
+  // commit (blur or Enter).
+  const [dateFromDraft, setDateFromDraft] = useState('');
+  const [dateToDraft, setDateToDraft] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState('');
@@ -150,6 +339,15 @@ export default function Transactions({ navigate }) {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [auditEntry, setAuditEntry] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // B1a pagination + sort state.
+  //   - page is 1-indexed (Go-to-page input uses 1-based per Patrick's mock).
+  //   - sortBy null + sortDir null = server's default (txn_date DESC, je.id DESC).
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState(null);
+  const [sortDir, setSortDir] = useState(null);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // load accounts (for the filter dropdown)
   useEffect(() => {
@@ -160,11 +358,13 @@ export default function Transactions({ navigate }) {
     setLoading(true);
     setError('');
     try {
-      const params = {};
+      const params = { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE };
       if (filterDateFrom) params.date_from = filterDateFrom;
       if (filterDateTo) params.date_to = filterDateTo;
       if (filterCategoryId) params.category_id = filterCategoryId;
       if (filterName.trim()) params.name_q = filterName.trim();
+      if (sortBy) params.sort_by = sortBy;
+      if (sortDir) params.sort_dir = sortDir;
       const res = await booksApi.listJournalEntries(params);
       setRows(res.data || []);
       setTotal(res.total || 0);
@@ -173,7 +373,7 @@ export default function Transactions({ navigate }) {
     } finally {
       setLoading(false);
     }
-  }, [filterDateFrom, filterDateTo, filterCategoryId, filterName]);
+  }, [filterDateFrom, filterDateTo, filterCategoryId, filterName, sortBy, sortDir, page]);
 
   useEffect(() => { loadEntries(); }, [loadEntries]);
 
@@ -190,22 +390,79 @@ export default function Transactions({ navigate }) {
   }
 
   function clearFilters() {
+    setDateFromDraft('');
+    setDateToDraft('');
     setFilterDateFrom('');
     setFilterDateTo('');
     setFilterCategoryId('');
     setFilterName('');
+    // Brief: filter change resets to page 1.
+    setPage(1);
   }
 
-  // Summary metrics (Phase 1+2 v1: simple)
-  const metrics = useMemo(() => {
-    let monthCount = 0;
-    const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    for (const r of rows) {
-      if ((r.txn_date || '').startsWith(yearMonth)) monthCount++;
+  // Commit the date input — parse the draft, and if valid, snap the visible
+  // value to canonical YYYY-MM-DD and apply the filter. If invalid, leave
+  // the draft untouched (per the brief: "Invalid formats: leave field
+  // untouched, don't fire filter. No error toast.").
+  function commitDateFrom() {
+    const parsed = parseFlexibleDate(dateFromDraft);
+    if (parsed === null) {
+      // Empty or invalid: if empty, treat as "clear filter"; if invalid,
+      // leave the draft as-is.
+      if (!dateFromDraft.trim()) {
+        setFilterDateFrom('');
+      }
+      return;
     }
-    return { monthCount };
-  }, [rows]);
+    setFilterDateFrom(parsed);
+    setDateFromDraft(parsed);
+    setPage(1);
+  }
+
+  function commitDateTo() {
+    const parsed = parseFlexibleDate(dateToDraft);
+    if (parsed === null) {
+      if (!dateToDraft.trim()) {
+        setFilterDateTo('');
+      }
+      return;
+    }
+    setFilterDateTo(parsed);
+    setDateToDraft(parsed);
+    setPage(1);
+  }
+
+  // 3-state sort cycle: asc → desc → cleared (default). The default sort is
+  // txn_date DESC per the server (v1 behavior; preserved when both are null).
+  function handleSortChange(key) {
+    if (sortBy !== key) {
+      setSortBy(key);
+      setSortDir('asc');
+    } else if (sortDir === 'asc') {
+      setSortDir('desc');
+    } else {
+      // Third click clears the sort — return to the server default.
+      setSortBy(null);
+      setSortDir(null);
+    }
+    setPage(1);
+  }
+
+  // Filter changes also reset to page 1. The (page, ...) deps on loadEntries
+  // already cause a refetch; we just need to set page back to 1 here so the
+  // next refetch starts from the beginning.
+  function handleCategoryChange(id) {
+    setFilterCategoryId(id);
+    setPage(1);
+  }
+  function handleNameChange(q) {
+    setFilterName(q);
+    setPage(1);
+  }
+
+  function handlePageChange(p) {
+    setPage(p);
+  }
 
   return (
     <div>
@@ -213,7 +470,7 @@ export default function Transactions({ navigate }) {
         <div>
           <h1 className="text-2xl font-light tracking-wide text-slate-100">Transactions</h1>
           <p className="text-slate-400 text-sm mt-1">
-            Every money event, balanced behind the scenes. {total.toLocaleString()} entries shown.
+            Every money event, balanced behind the scenes.
           </p>
         </div>
         <button
@@ -224,36 +481,35 @@ export default function Transactions({ navigate }) {
         </button>
       </div>
 
-      {/* Summary metrics */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Metric label="Entries this month" value={metrics.monthCount.toLocaleString()} />
-        <Metric label="Unbalanced entries" value="0" />
-        <Metric label="User action needed" value="None" />
-      </div>
-
       {/* Filter bar */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 mb-4">
         <div className="flex flex-wrap items-end gap-3">
           <Field label="From">
             <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              type="text"
+              value={dateFromDraft}
+              onChange={(e) => setDateFromDraft(e.target.value)}
+              onBlur={commitDateFrom}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+              placeholder="MM/DD/YYYY"
+              className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-32"
             />
           </Field>
           <Field label="To">
             <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              type="text"
+              value={dateToDraft}
+              onChange={(e) => setDateToDraft(e.target.value)}
+              onBlur={commitDateTo}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
+              placeholder="MM/DD/YYYY"
+              className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-32"
             />
           </Field>
           <Field label="Category">
             <select
               value={filterCategoryId}
-              onChange={(e) => setFilterCategoryId(e.target.value)}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
             >
               <option value="">All categories</option>
@@ -266,7 +522,7 @@ export default function Transactions({ navigate }) {
             <input
               type="text"
               value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Vendor or customer…"
               className="bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-44"
             />
@@ -287,6 +543,13 @@ export default function Transactions({ navigate }) {
 
       {/* GL table */}
       <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <PaginationStrip
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          pageSize={PAGE_SIZE}
+          onPageChange={handlePageChange}
+        />
         {loading ? (
           <div className="p-6 text-sm text-slate-400">Loading transactions…</div>
         ) : rows.length === 0 ? (
@@ -303,14 +566,15 @@ export default function Transactions({ navigate }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-900/50 text-slate-400 text-left text-xs uppercase tracking-wider">
               <tr>
-                <th className="px-3 py-2 w-24">Date</th>
-                <th className="px-3 py-2 w-20">Type</th>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2 text-right w-28">Amount</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Category</th>
-                <th className="px-3 py-2">Matched with</th>
-                <th className="px-3 py-2 w-28">Status</th>
+                {SORTABLE_COLUMNS.map(col => (
+                  <SortHeader
+                    key={col.key}
+                    col={col}
+                    sortBy={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleSortChange}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
@@ -352,6 +616,15 @@ export default function Transactions({ navigate }) {
             </tbody>
           </table>
         )}
+        {!loading && rows.length > 0 && (
+          <PaginationStrip
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
+        )}
       </div>
 
       {auditLoading && (
@@ -382,14 +655,5 @@ function Field({ label, children }) {
       <span className="text-[10px] uppercase tracking-wider text-slate-500">{label}</span>
       {children}
     </label>
-  );
-}
-
-function Metric({ label, value }) {
-  return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500">{label}</div>
-      <div className="text-xl text-slate-100 mt-0.5 tabular-nums font-light">{value}</div>
-    </div>
   );
 }
