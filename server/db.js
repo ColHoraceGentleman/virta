@@ -832,5 +832,98 @@ safeExec(`
 `);
 safeExec('CREATE INDEX IF NOT EXISTS idx_account_balances_as_of ON account_balances(as_of_date)');
 
+// =====================================================================
+// Virta Books — B2a: Setup Wizard Foundation
+// Source of truth: docs/books/setup-wizard/SETUP_AND_CATEGORIES.md §4.1,
+// §4.2, §4.3 and queued/TASK-b2a-setup-wizard-foundation.md.
+//
+// All changes are ADDITIVE per Hard Rule #2:
+//   1. businesses table — sole proprietor identity, NAICS, EIN, etc.
+//   2. settings table — per-business key/value (show_account_numbers, etc.)
+//   3. accounts CHECK constraint — irs_line required unless name='Review Later'.
+//   4. One-time data migration: NULL irs_line rows → '(unspecified)' fallback.
+//
+// No DROP/CREATE/RENAME on existing tables. Settings/businesses are net-new.
+// The accounts CHECK is added via try/catch because SQLite ALTER TABLE … ADD
+// CONSTRAINT is not idempotent (it errors on re-run).
+// =====================================================================
+
+// 1. businesses — sole proprietor identity + tax identifiers.
+safeExec(`
+  CREATE TABLE IF NOT EXISTS businesses (
+    id TEXT PRIMARY KEY,
+    proprietor_name TEXT,
+    business_name TEXT,
+    trade_name TEXT,
+    business_description TEXT,
+    naics_code TEXT,
+    address_line1 TEXT,
+    address_line2 TEXT,
+    city TEXT,
+    state TEXT,
+    postal TEXT,
+    country TEXT DEFAULT 'US',
+    ein TEXT,
+    accounting_method TEXT NOT NULL DEFAULT 'cash',
+    fiscal_year_start_month INTEGER NOT NULL DEFAULT 1,
+    business_started_on TEXT,
+    business_type TEXT NOT NULL DEFAULT 'sole_proprietor',
+    currency TEXT NOT NULL DEFAULT 'USD',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+// 2. settings — per-business key/value store (composite PK).
+safeExec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    business_id TEXT NOT NULL REFERENCES businesses(id),
+    key TEXT NOT NULL,
+    value TEXT,
+    PRIMARY KEY (business_id, key)
+  )
+`);
+safeExec('CREATE INDEX IF NOT EXISTS idx_settings_business ON settings(business_id)');
+
+// 3. accounts irs_line constraint — required unless the row is the
+// "Review Later" system account. SQLite does NOT support ALTER TABLE ADD
+// CONSTRAINT, so we enforce this with a BEFORE INSERT/UPDATE trigger that
+// raises on violation. Equivalent enforcement at the DB layer. The trigger
+// name is checked to keep this idempotent across boots.
+{
+  const triggerExists = db.prepare(`
+    SELECT name FROM sqlite_master WHERE type='trigger' AND name='accounts_irs_line_required_insert'
+  `).get();
+  if (!triggerExists) {
+    db.exec(`
+      CREATE TRIGGER accounts_irs_line_required_insert
+      BEFORE INSERT ON accounts
+      FOR EACH ROW
+      WHEN NEW.name != 'Review Later' AND NEW.irs_line IS NULL
+      BEGIN
+        SELECT RAISE(ABORT, 'irs_line required for non-Review-Later accounts');
+      END;
+
+      CREATE TRIGGER accounts_irs_line_required_update
+      BEFORE UPDATE OF irs_line, name ON accounts
+      FOR EACH ROW
+      WHEN NEW.name != 'Review Later' AND NEW.irs_line IS NULL
+      BEGIN
+        SELECT RAISE(ABORT, 'irs_line required for non-Review-Later accounts');
+      END;
+    `);
+  }
+}
+
+// 4. One-time data migration: NULL irs_line rows get '(unspecified)' so the
+// new CHECK doesn't reject them. Idempotent — re-running is a no-op.
+{
+  const nullCount = db.prepare(`SELECT COUNT(*) as c FROM accounts WHERE irs_line IS NULL AND name != 'Review Later'`).get().c;
+  if (nullCount > 0) {
+    console.log(`[B2a] Backfilling ${nullCount} accounts with NULL irs_line to '(unspecified)'`);
+    db.exec(`UPDATE accounts SET irs_line = '(unspecified)' WHERE irs_line IS NULL AND name != 'Review Later'`);
+  }
+}
+
 export default db;
 export { generateId };

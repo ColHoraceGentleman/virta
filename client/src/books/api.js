@@ -204,4 +204,13 @@ export const booksApi = {
     request('POST', `/reconcile/${reconId}/clear`, { transaction_id: transactionId }),
   unClearTransaction: (reconId, transactionId) =>
     request('DELETE', `/reconcile/${reconId}/clear/${transactionId}`),
+
+  // Setup Wizard Foundation (B2a-prime): businesses + settings.
+  // v2 is single-tenant — the API hides the row id and exposes /current.
+  getCurrentBusiness: () => request('GET', '/businesses/current'),
+  createBusiness: (data) => request('POST', '/businesses', data),
+  updateCurrentBusiness: (data) => request('PATCH', '/businesses/current', data),
+  getSettings: () => request('GET', '/settings'),
+  updateSetting: (key, value) => request('PUT', `/settings/${encodeURIComponent(key)}`, { value }),
+  getSetting: (key) => request('GET', `/settings/${encodeURIComponent(key)}`),
 };
