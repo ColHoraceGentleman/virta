@@ -394,6 +394,7 @@ export function getEntryWithAudit(id) {
 //   date_from?, date_to?    — both inclusive (YYYY-MM-DD strings)
 //   category_id?            — match either side (category or matched)
 //   name_q?                 — case-insensitive substring match on entry.name
+//   sort_by?, sort_dir?     — see SORTABLE_COLUMNS whitelist below
 //   limit?, offset?
 // }
 //
@@ -401,6 +402,36 @@ export function getEntryWithAudit(id) {
 // `category` and `matched` account info + summary debit/credit amounts so
 // the React table can render without re-joining per row.
 // =====================================================================
+
+// Whitelist of columns the GL table allows sorting by. Keys are the public
+// `sort_by` values the client may send; values are the SQL ORDER BY
+// expressions (column + alias used in the SELECT below).
+//
+// Notes:
+//   - `amount` and `total_debit` refer to the same underlying value on a
+//     balanced entry (sum of debit lines), so they share the same SQL.
+//   - `matched_code` and `category_code` reference the joined account code
+//     columns from the LEFT JOIN to accounts.
+//   - `description` and `name` use COALESCE so NULL sorts to the end of
+//     ascending sorts, instead of always being least.
+//   - `recon_status` is a small enum; an alphabetical sort gives a stable
+//     but uninteresting order — the client surfaces this for completeness,
+//     not because it's the most useful column.
+//   - The fall-through default `txn_date DESC, je.id DESC` is the v1
+//     behavior and is preserved when no `sort_by` is provided OR when an
+//     invalid column is passed (so a stale client doesn't crash the page).
+const SORTABLE_COLUMNS = {
+  txn_date:      'je.txn_date',
+  source:        'je.source',
+  name:          "LOWER(COALESCE(je.name, ''))",
+  amount:        'je.amount',                  // signed magnitude per D63/D64
+  total_debit:   'je.amount',                  // alias of `amount` for column-label symmetry
+  description:   "LOWER(COALESCE(je.description, ''))",
+  category_code: 'LOWER(COALESCE(cat.code, \'\'))',
+  matched_code:  'LOWER(COALESCE(mtc.code, \'\'))',
+  recon_status:  "LOWER(COALESCE(je.recon_status, ''))",
+};
+
 export function listEntries(filter = {}) {
   const where = [];
   const params = [];
@@ -430,6 +461,17 @@ export function listEntries(filter = {}) {
   const limit = Math.min(Number(filter.limit) || 100, 500);
   const offset = Number(filter.offset) || 0;
 
+  // Resolve the ORDER BY clause from the sort whitelist. Anything outside
+  // the whitelist (or absent) falls back to the v1 default: txn_date DESC,
+  // je.id DESC. Direction is clamped to asc|desc — anything else is ignored.
+  const sortKey = filter.sort_by && SORTABLE_COLUMNS[filter.sort_by]
+    ? filter.sort_by
+    : 'txn_date';
+  const sortDirRaw = String(filter.sort_dir || '').toLowerCase();
+  const sortDir = (sortDirRaw === 'asc' || sortDirRaw === 'desc') ? sortDirRaw : 'desc';
+  // Tiebreaker: id DESC keeps the order deterministic when the sort column has duplicates.
+  const orderClause = `ORDER BY ${SORTABLE_COLUMNS[sortKey]} ${sortDir.toUpperCase()}, je.id DESC`;
+
   const rows = db.prepare(`
     SELECT
       je.id, je.txn_date, je.description, je.source, je.created_at,
@@ -444,7 +486,7 @@ export function listEntries(filter = {}) {
     LEFT JOIN accounts cat ON cat.id = je.category_account_id
     LEFT JOIN accounts mtc ON mtc.id = je.matched_account_id
     ${whereClause}
-    ORDER BY je.txn_date DESC, je.id DESC
+    ${orderClause}
     LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 

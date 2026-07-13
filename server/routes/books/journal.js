@@ -56,10 +56,14 @@ router.post('/entries', (req, res) => {
   }
 });
 
-// GET /journal/entries?date_from=&date_to=&category_id=&name_q=&limit=&offset=
-// Powers the Transactions (GL) page. Filtering is applied SERVER-SIDE in
-// SQL (date range, category, name substring) with a 500-row cap, not in
-// the browser. The match is inclusive on both date bounds.
+// GET /journal/entries?date_from=&date_to=&category_id=&name_q=
+//                       &sort_by=&sort_dir=&limit=&offset=
+// Powers the Transactions (GL) page. Filtering AND sorting are applied
+// SERVER-SIDE in SQL (date range, category, name substring, sortable
+// columns whitelist) with a 500-row cap, not in the browser. The match
+// is inclusive on both date bounds. sort_by must match a key in
+// journalService.SORTABLE_COLUMNS; anything else falls through to the
+// default (txn_date DESC).
 router.get('/entries', (req, res) => {
   try {
     const result = listEntries({
@@ -67,6 +71,8 @@ router.get('/entries', (req, res) => {
       date_to: req.query.date_to,
       category_id: req.query.category_id,
       name_q: req.query.name_q,
+      sort_by: req.query.sort_by,
+      sort_dir: req.query.sort_dir,
       limit: req.query.limit,
       offset: req.query.offset,
     });
