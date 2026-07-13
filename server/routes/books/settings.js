@@ -42,7 +42,16 @@ router.put('/:key', (req, res) => {
       return res.status(404).json({ error: 'No business configured', code: 'NOT_FOUND' });
     }
     const { key } = req.params;
-    const { value } = req.body || {};
+    const body = req.body;
+    // Reject missing/empty body — silently creating a key with value:null is a footgun.
+    // Explicit { value: null } is allowed (clears the setting); undefined means no body at all.
+    if (body === undefined || body === null) {
+      return res.status(400).json({ error: 'Request body is required (expected { value })', code: 'VALIDATION_ERROR' });
+    }
+    if (!Object.prototype.hasOwnProperty.call(body, 'value')) {
+      return res.status(400).json({ error: 'Request body must include a "value" field', code: 'VALIDATION_ERROR' });
+    }
+    const { value } = body;
     const row = updateSetting(biz.id, key, value);
     res.json({ data: row });
   } catch (err) {
