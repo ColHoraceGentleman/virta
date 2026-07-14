@@ -1,11 +1,11 @@
-// Virta Books — v2 Setup Wizard (B2a-wizard-B: Steps 1-2 + NAICS modal).
+// Virta Books — v2 Setup Wizard (B2a-wizard-B + B2b-1: Steps 1-5 + NAICS modal).
 //
 // Wireframe source of truth: WIREFRAMES.html renderSetup() (line 313) + §6 of
 // docs/books/setup-wizard/SETUP_AND_CATEGORIES.md. The full wizard is 6
-// steps. B2a-wizard-B ships a real implementation of Steps 1-2 + the NAICS
-// picker modal; Steps 3-6 render a "Coming in B2b" placeholder card so the
-// step machine + progress dots are demonstrably real (B2b will replace
-// the placeholder with the actual step component).
+// steps. B2a-wizard-B shipped Steps 1-2 + the NAICS picker modal. B2b-1
+// adds Steps 3-5 (Contact / Accounting method / Timeline). Step 6 still
+// renders a "Coming in B2b-2" placeholder card — B2b-2 will land the
+// real review screen with edit-on-review + the final POST to /businesses.
 //
 // State machine
 // -------------
@@ -15,17 +15,23 @@
 // "Welcome back" panel with [Restart] and [Continue to Books] buttons
 // instead of the live wizard.
 //
-// B2b (separate task) will land the final POST to /businesses and set
+// B2b-2 (separate task) will land the final POST to /businesses and set
 // setupCompletedAt. Until then `setupCompletedAt` stays null.
 //
 // Step 1 (Welcome) — SetupWizardWelcome.jsx
 // Step 2 (Basic business info) — SetupWizardBusinessInfo.jsx
-// Step 3-6 (placeholders) — SetupWizardStepPlaceholder.jsx
+// Step 3 (Contact) — SetupWizardContact.jsx
+// Step 4 (Accounting method) — SetupWizardAccounting.jsx
+// Step 5 (Timeline) — SetupWizardTimeline.jsx
+// Step 6 (Review, placeholder) — SetupWizardStepPlaceholder.jsx
 // NAICS picker modal — SetupWizardNaicsModal.jsx
 // Progress dots — SetupWizardProgress.jsx
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import SetupWizardWelcome from './SetupWizardWelcome.jsx';
 import SetupWizardBusinessInfo from './SetupWizardBusinessInfo.jsx';
+import SetupWizardContact from './SetupWizardContact.jsx';
+import SetupWizardAccounting from './SetupWizardAccounting.jsx';
+import SetupWizardTimeline from './SetupWizardTimeline.jsx';
 import SetupWizardStepPlaceholder from './SetupWizardStepPlaceholder.jsx';
 import SetupWizardProgress from './SetupWizardProgress.jsx';
 
@@ -157,6 +163,9 @@ export default function SetupWizard({ navigate }) {
   // Per the spec, "Skip" is the label before any field has been touched;
   // once dirty, the label flips to "Revert to Defaults" and clicking it
   // clears the user input on this step.
+  // Steps 3-5 each handle their own revert locally via updateSetup so
+  // they only clear the fields they own. The parent's
+  // revertSetupToDefaults is Step-2-specific.
   const revertSetupToDefaults = useCallback(() => {
     setState((s) => ({
       ...s,
@@ -265,7 +274,28 @@ export default function SetupWizard({ navigate }) {
               revertSetupToDefaults={revertSetupToDefaults}
             />
           )}
-          {(stepNumber === 3 || stepNumber === 4 || stepNumber === 5 || stepNumber === 6) && (
+          {stepNumber === 3 && (
+            <SetupWizardContact
+              setup={state.setup}
+              updateSetup={updateSetup}
+              setStep={setStep}
+            />
+          )}
+          {stepNumber === 4 && (
+            <SetupWizardAccounting
+              setup={state.setup}
+              updateSetup={updateSetup}
+              setStep={setStep}
+            />
+          )}
+          {stepNumber === 5 && (
+            <SetupWizardTimeline
+              setup={state.setup}
+              updateSetup={updateSetup}
+              setStep={setStep}
+            />
+          )}
+          {stepNumber === 6 && (
             <SetupWizardStepPlaceholder
               stepNumber={stepNumber}
               stepName={currentStep.name}
