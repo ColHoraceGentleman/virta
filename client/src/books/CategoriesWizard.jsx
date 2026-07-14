@@ -201,29 +201,44 @@ export default function CategoriesWizard({ navigate }) {
     }
   }, []);
 
+  // hideAccount / deleteAccount — defensive system-guard (SIGNIFICANT-1 fix):
+  // these are the actual state mutators, so they refuse to operate on
+  // `acc.system === true` rows (Review Later) even if some future UI path
+  // forgets to gate its own button. The UI-level guard in
+  // CategoriesWizardExpensesStep.jsx / IncomeStep.jsx is the primary
+  // defense; this is belt-and-suspenders.
   const hideAccount = useCallback((id) => {
     setState((s) => {
+      const target = [...s.expenses, ...s.income].find((a) => a.id === id);
+      if (target && target.system) return s;
       const toggle = (list) => list.map((a) => (a.id === id ? { ...a, is_hidden: !a.is_hidden } : a));
       return { ...s, expenses: toggle(s.expenses), income: toggle(s.income) };
     });
     if (typeof id === 'string' && id.startsWith('server-')) {
       const realId = id.replace('server-', '');
       const acc = [...state.expenses, ...state.income].find((a) => a.id === id);
+      if (acc && acc.system) return;
       booksApi.updateAccount(realId, { is_hidden: !(acc && acc.is_hidden) }).catch(() => {});
     }
   }, [state.expenses, state.income]);
 
   const deleteAccount = useCallback((id) => {
-    setState((s) => ({
-      ...s,
-      expenses: s.expenses.filter((a) => a.id !== id),
-      income: s.income.filter((a) => a.id !== id),
-    }));
+    setState((s) => {
+      const target = [...s.expenses, ...s.income].find((a) => a.id === id);
+      if (target && target.system) return s;
+      return {
+        ...s,
+        expenses: s.expenses.filter((a) => a.id !== id),
+        income: s.income.filter((a) => a.id !== id),
+      };
+    });
     if (typeof id === 'string' && id.startsWith('server-')) {
       const realId = id.replace('server-', '');
+      const acc = [...state.expenses, ...state.income].find((a) => a.id === id);
+      if (acc && acc.system) return;
       booksApi.deleteAccount(realId).catch(() => {});
     }
-  }, []);
+  }, [state.expenses, state.income]);
 
   const startOver = useCallback(() => {
     if (typeof window !== 'undefined') {

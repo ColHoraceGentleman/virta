@@ -208,15 +208,33 @@ export default function CategoriesWizardExpensesStep({
                     </td>
                     <td className="px-3 py-2 text-slate-400 text-xs">{acc.descriptor}</td>
                     <td className="px-3 py-2 text-right text-xs whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => hideAccount(acc.id)}
-                        className="text-indigo-400 hover:text-indigo-300 mr-3"
-                        data-testid={`expense-hide-${acc.id}`}
-                      >
-                        {acc.is_hidden ? 'Unhide' : 'Hide'}
-                      </button>
-                      {hasTx ? (
+                      {acc.system ? (
+                        <span
+                          className="text-slate-600 cursor-not-allowed mr-3"
+                          title="Review Later can't be hidden or deleted."
+                          data-testid={`expense-hide-disabled-${acc.id}`}
+                        >
+                          Hide
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => hideAccount(acc.id)}
+                          className="text-indigo-400 hover:text-indigo-300 mr-3"
+                          data-testid={`expense-hide-${acc.id}`}
+                        >
+                          {acc.is_hidden ? 'Unhide' : 'Hide'}
+                        </button>
+                      )}
+                      {acc.system ? (
+                        <span
+                          className="text-slate-600 cursor-not-allowed"
+                          title="Review Later can't be hidden or deleted."
+                          data-testid={`expense-delete-disabled-${acc.id}`}
+                        >
+                          Delete
+                        </span>
+                      ) : hasTx ? (
                         <span
                           className="text-slate-600 cursor-not-allowed"
                           title="This account has transactions. Manage it from Categories after setup."
