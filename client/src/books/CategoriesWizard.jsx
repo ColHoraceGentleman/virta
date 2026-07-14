@@ -38,40 +38,49 @@ export const CATEGORIES_STEPS = [
   { n: 6, name: 'Final review',                  skippable: false },
 ];
 
-// DEFAULT_EXPENSES — 22 alphabetical Schedule C expense categories + the
-// system "Review Later" bucket (9999-style bucket, code 6999 here to stay
-// in the 6000s expense block). `system: true` accounts can't be deleted
-// or renamed (defensive — B3a doesn't wire a delete-blocker UI for it
-// beyond the generic has-transactions guard, since Review Later never has
-// transactions_count > 0 during the wizard either way).
+// DEFAULT_EXPENSES — 23 total: 22 alphabetical Schedule C expense
+// categories (§10 canonical table, transcribed verbatim) + the system
+// "Review Later" bucket (code 6999, the catch-all at the end of the 6xxx
+// range, per §10's sort-order note). `system: true` accounts can't be
+// deleted, hidden, or renamed (SIGNIFICANT-1 fix — guarded both in the UI
+// and defensively in CategoriesWizard.jsx's hideAccount/deleteAccount).
+//
+// NOTE (SIGNIFICANT-2 fix): this table previously used a "modern SaaS
+// bookkeeping" invented scheme (different names, added/missing rows, and
+// wrong Schedule C line numbers on 21 of 23 rows). It has been replaced
+// with the exact §10 table — names, codes, and Schedule C lines verbatim.
+// No inference. See CINDER_REPORT_b3a-fixes.md for the row-by-row proof.
 export const DEFAULT_EXPENSES = [
-  { code: '6000', name: 'Accounting',                    irs_line: 'Line 17',   descriptor: 'Bookkeeper, accountant fees' },
-  { code: '6010', name: 'Advertising',                   irs_line: 'Line 8',    descriptor: 'Ads, marketing, promotions' },
-  { code: '6020', name: 'Bank Fees',                      irs_line: 'Line 27a',  descriptor: 'Monthly fees, wire fees, chargebacks' },
-  { code: '6030', name: 'Business Insurance',             irs_line: 'Line 15',   descriptor: 'Liability, E&O, business property insurance' },
-  { code: '6040', name: 'Car & Truck',                    irs_line: 'Line 9',    descriptor: 'Mileage, fuel, vehicle maintenance' },
-  { code: '6050', name: 'Commissions & Fees',             irs_line: 'Line 10',   descriptor: 'Referral fees, sales commissions' },
-  { code: '6060', name: 'Contract Labor',                 irs_line: 'Line 11',   descriptor: '1099 contractors, freelancers' },
-  { code: '6070', name: 'Depreciation',                   irs_line: 'Line 13',   descriptor: 'Depreciation and Section 179 deduction' },
-  { code: '6080', name: 'Dues & Subscriptions',           irs_line: 'Line 27a',  descriptor: 'Memberships, trade publications' },
-  { code: '6090', name: 'Legal & Professional Services',  irs_line: 'Line 17',   descriptor: 'Attorney fees, consulting fees' },
-  { code: '6100', name: 'Licenses & Fees',                irs_line: 'Line 23',   descriptor: 'Business licenses, permit fees' },
-  { code: '6110', name: 'Meals (50% deductible)',         irs_line: 'Line 24b',  descriptor: 'Client meals, business meals' },
-  { code: '6120', name: 'Office Expenses',                irs_line: 'Line 18',   descriptor: 'Office supplies, small equipment' },
-  { code: '6130', name: 'Payroll & Wages',                irs_line: 'Line 26',   descriptor: 'Employee wages (not owner draw)' },
-  { code: '6140', name: 'Postage & Shipping',             irs_line: 'Line 27a',  descriptor: 'Stamps, shipping labels, courier fees' },
-  { code: '6150', name: 'Rent or Lease',                  irs_line: 'Line 20b',  descriptor: 'Office, studio, or storage rent' },
-  { code: '6160', name: 'Repairs & Maintenance',          irs_line: 'Line 21',   descriptor: 'Equipment and property repairs' },
-  { code: '6170', name: 'Software & Subscriptions',       irs_line: 'Line 27a',  descriptor: 'SaaS tools, cloud services' },
-  { code: '6180', name: 'Supplies',                       irs_line: 'Line 22',   descriptor: 'Consumable business supplies' },
-  { code: '6190', name: 'Taxes & Licenses',                irs_line: 'Line 23',   descriptor: 'Business taxes, regulatory fees' },
-  { code: '6200', name: 'Travel',                         irs_line: 'Line 24a',  descriptor: 'Airfare, lodging, transportation' },
-  { code: '6210', name: 'Utilities',                      irs_line: 'Line 25',   descriptor: 'Phone, internet, electricity' },
-  { code: '6999', name: 'Review Later',                   irs_line: null,        descriptor: 'System bucket for low-confidence categorization', system: true },
+  { code: '6000', name: 'Accounting',              irs_line: 'Line 16b',  descriptor: 'Bookkeeper, accountant fees' },
+  { code: '6010', name: 'Advertising',              irs_line: 'Line 8',    descriptor: 'Ads, marketing, promotions' },
+  { code: '6020', name: 'Car & Truck',              irs_line: 'Line 9',    descriptor: 'Car and truck expenses for business' },
+  { code: '6030', name: 'Commissions',              irs_line: 'Line 10',   descriptor: 'Commissions paid to non-employees' },
+  { code: '6040', name: 'Contract Labor',           irs_line: 'Line 11',   descriptor: 'Payments to independent contractors' },
+  { code: '6050', name: 'Depletion',                irs_line: 'Line 12',   descriptor: 'Depletion of natural resources (rare)' },
+  { code: '6060', name: 'Depreciation',             irs_line: 'Line 13',   descriptor: 'Depreciation of business assets' },
+  { code: '6070', name: 'Insurance',                irs_line: 'Line 14',   descriptor: 'Business liability, vehicle, etc.' },
+  { code: '6080', name: 'Interest',                 irs_line: 'Line 15b',  descriptor: 'Other business interest' },
+  { code: '6090', name: 'Legal & Professional',     irs_line: 'Line 16a',  descriptor: 'Lawyer, consultant fees' },
+  { code: '6100', name: 'Meals',                    irs_line: 'Line 24b',  descriptor: 'Business meals (50% deductible)' },
+  { code: '6110', name: 'Mortgage Interest',        irs_line: 'Line 15a',  descriptor: 'Mortgage on business property' },
+  { code: '6120', name: 'Office Expense',           irs_line: 'Line 17',   descriptor: 'Office supplies, small equipment' },
+  { code: '6130', name: 'Phone',                    irs_line: 'Line 25b',  descriptor: 'Business phone / mobile' },
+  { code: '6140', name: 'Rent',                     irs_line: 'Line 19',   descriptor: 'Rent or lease on business property' },
+  { code: '6150', name: 'Repairs & Maintenance',    irs_line: 'Line 20a',  descriptor: 'Repairs to business property/equipment' },
+  { code: '6160', name: 'Retirement',               irs_line: 'Line 18',   descriptor: 'Pension / profit-sharing / SEP-IRA' },
+  { code: '6170', name: 'Supplies',                 irs_line: 'Line 20b',  descriptor: 'Materials and supplies' },
+  { code: '6180', name: 'Taxes & Licenses',         irs_line: 'Line 21',   descriptor: 'Business taxes, licenses, permits' },
+  { code: '6190', name: 'Travel',                   irs_line: 'Line 24a',  descriptor: 'Business travel away from home' },
+  { code: '6200', name: 'Utilities',                irs_line: 'Line 25a',  descriptor: 'Electric, water, gas for business' },
+  { code: '6210', name: 'Wages',                    irs_line: 'Line 26',   descriptor: 'Wages to employees' },
+  { code: '6999', name: 'Review Later',             irs_line: null,        descriptor: 'System bucket for low-confidence categorization', system: true },
 ];
 
 // DEFAULT_INCOME — intentionally NOT alphabetical. Sales / Refunds &
 // Returns / Other Income, per VB-CATWIZ-STEP3-02 (CW-007 exception).
+// Names/codes/lines verbatim from §10's Income table (verified against
+// spec — no divergence found for income; only DEFAULT_EXPENSES needed
+// the SIGNIFICANT-2 fix).
 export const DEFAULT_INCOME = [
   { code: '4000', name: 'Sales',              irs_line: 'Part I line 1', descriptor: 'Gross receipts or sales' },
   { code: '4010', name: 'Refunds & Returns',  irs_line: 'Part I line 7', descriptor: 'Refunds and returns' },

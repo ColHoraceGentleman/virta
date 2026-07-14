@@ -16,11 +16,12 @@ import PlaceholderAddAccountModal from './PlaceholderAddAccountModal.jsx';
 // are a different, much shorter Part I list).
 export const IRS_LINE_OPTIONS = [
   'Line 8',    'Line 9',    'Line 10',   'Line 11',
-  'Line 12',   'Line 13',   'Line 14',   'Line 15',
-  'Line 16a',  'Line 16b',  'Line 17',   'Line 18',
-  'Line 19',   'Line 20a',  'Line 20b',  'Line 21',
-  'Line 22',   'Line 23',   'Line 24a',  'Line 24b',
-  'Line 25',   'Line 26',   'Line 27a',
+  'Line 12',   'Line 13',   'Line 14',   'Line 15a',
+  'Line 15b',  'Line 16a',  'Line 16b',  'Line 17',
+  'Line 18',   'Line 19',   'Line 20a',  'Line 20b',
+  'Line 21',   'Line 22',   'Line 23',   'Line 24a',
+  'Line 24b',  'Line 25a',  'Line 25b',  'Line 26',
+  'Line 27a',
 ];
 
 function SortHeader({ label, field, sort, onSort }) {
