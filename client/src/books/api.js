@@ -210,6 +210,13 @@ export const booksApi = {
   getCurrentBusiness: () => request('GET', '/businesses/current'),
   createBusiness: (data) => request('POST', '/businesses', data),
   updateCurrentBusiness: (data) => request('PATCH', '/businesses/current', data),
+  // updateBusiness — B2b-2 alias for updateCurrentBusiness. The wizard's
+  // Step 6 final POST doesn't carry a business id around (v2 is
+  // single-tenant, so PATCH /businesses/current is the only update route);
+  // this alias exists so SetupWizard.jsx's createOrUpdate logic reads
+  // naturally (createBusiness vs updateBusiness) without callers needing
+  // to know the id-less PATCH quirk.
+  updateBusiness: (data) => request('PATCH', '/businesses/current', data),
   getSettings: () => request('GET', '/settings'),
   updateSetting: (key, value) => request('PUT', `/settings/${encodeURIComponent(key)}`, { value }),
   getSetting: (key) => request('GET', `/settings/${encodeURIComponent(key)}`),

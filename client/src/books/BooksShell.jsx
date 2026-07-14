@@ -14,16 +14,25 @@
 // shortcut to it. (Long-term: a Settings → "Restart wizard" affordance lands
 // in B5; once the full Books surface is built it goes away entirely.)
 //
-// First-run gate (B2a-wizard-A):
+// First-run gate (B2a-wizard-A, re-fetch wired B2b-2):
 //   BooksShell fetches GET /api/v1/books/businesses/current on mount and
 //   decides whether to render the sidebar:
 //     - State A (404 / no business row) → hide sidebar; full-page welcome.
 //     - State C (200 with business data) → show sidebar; Dashboard renders
 //       Welcome back content.
 //   State B (setup in progress, business exists with setupCompletedAt === null)
-//   is described in the spec but cannot be detected in B2a because the
-//   setupCompletedAt column lands in B2b. Until then, "business exists" maps
-//   to State C. (B2b will introduce the real split once that column ships.)
+//   is described in the spec but cannot be detected here — setupCompletedAt
+//   lives in wizard-local localStorage, not on the businesses row, so
+//   "business exists" continues to map to State C.
+//   B2b-2 (Wren B2a-wizard-B NIT F7): useSetupGate now exposes `refetch`,
+//   passed into SetupWizard as `onSetupComplete`. When the wizard's Step 6
+//   final POST succeeds, it calls this so the gate flips from first-run to
+//   ready immediately — the sidebar appears without a hard reload.
+//
+// /books/categories/wizard (B2b-2): routes to Categories.jsx as a stand-in
+// until B3a's real Categories Wizard ships. This is the first hop in the
+// Setup Wizard's post-completion navigation fallback chain (see
+// SetupWizard.jsx's CATEGORIES_NAV_CHAIN).
 //
 // Settings submenu: only rendered on /books/settings* routes. Three tabs:
 // General / Categories / Other.
@@ -152,39 +161,54 @@ function SettingsSubmenu({ path, navigate }) {
 // Why 'error' → 'first-run': if we can't reach the server, the user clearly
 // hasn't gotten far enough for a Dashboard to make sense. Defaulting to the
 // welcome card is the most conservative (and least broken-looking) fallback.
+//
+// B2b-2 (Wren B2a-wizard-B NIT F7): exposes a `refetch` function alongside
+// the gate state. SetupWizard.jsx's Step 6 final-POST success handler
+// calls this (via the `onSetupComplete` prop BooksShell passes down) so
+// the first-run → ready transition fires immediately — without it, the
+// sidebar wouldn't appear until the next full page load.
 function useSetupGate() {
   const [gate, setGate] = useState({ status: 'loading', business: null, error: null });
+
+  const fetchGate = useCallback(async () => {
+    try {
+      const data = await booksApi.getCurrentBusiness();
+      // booksApi.getCurrentBusiness returns the unwrapped `data` field
+      // (the business row) on 200, and throws on 404/5xx. So if we got
+      // here with truthy data → State C; the booksApi wrapper would have
+      // thrown on 404. If a future API change returns 200 with data: null,
+      // we treat that as first-run per the B2a-wizard-A brief.
+      if (!data) {
+        setGate({ status: 'first-run', business: null, error: null });
+      } else {
+        setGate({ status: 'ready', business: data, error: null });
+      }
+    } catch (err) {
+      // 404 → first-run; anything else → error (which also renders first-run
+      // with a "couldn't reach server" notice).
+      const isNotFound = err && (err.code === 'NOT_FOUND' || err.status === 404);
+      if (isNotFound) {
+        setGate({ status: 'first-run', business: null, error: null });
+      } else {
+        setGate({ status: 'error', business: null, error: err && err.message || 'Unknown error' });
+      }
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const data = await booksApi.getCurrentBusiness();
-        if (cancelled) return;
-        // booksApi.getCurrentBusiness returns the unwrapped `data` field
-        // (the business row) on 200, and throws on 404/5xx. So if we got
-        // here with truthy data → State C; the booksApi wrapper would have
-        // thrown on 404. If a future API change returns 200 with data: null,
-        // we treat that as first-run per the B2a-wizard-A brief.
-        if (!data) {
-          setGate({ status: 'first-run', business: null, error: null });
-        } else {
-          setGate({ status: 'ready', business: data, error: null });
-        }
-      } catch (err) {
-        if (cancelled) return;
-        // 404 → first-run; anything else → error (which also renders first-run
-        // with a "couldn't reach server" notice).
-        const isNotFound = err && (err.code === 'NOT_FOUND' || err.status === 404);
-        if (isNotFound) {
-          setGate({ status: 'first-run', business: null, error: null });
-        } else {
-          setGate({ status: 'error', business: null, error: err && err.message || 'Unknown error' });
-        }
-      }
+      // Guard against setting state after unmount — fetchGate itself has no
+      // cancellation awareness, so we just skip the setGate calls it made
+      // if we've already unmounted. In practice this only matters for the
+      // very first mount race; refetch() calls after mount don't need it.
+      if (cancelled) return;
+      await fetchGate();
     })();
     return () => { cancelled = true; };
-  }, []);
-  return gate;
+  }, [fetchGate]);
+
+  return { ...gate, refetch: fetchGate };
 }
 
 // Mounted at /books/* — picks the right page based on path.
@@ -225,7 +249,22 @@ export default function BooksShell() {
       />
     );
   } else if (path === '/books/setup' || path === '/books/setup/') {
-    page = <SetupWizard navigate={navigate} />;
+    page = (
+      <SetupWizard
+        navigate={navigate}
+        business={gate.business}
+        onSetupComplete={gate.refetch}
+      />
+    );
+  } else if (path === '/books/categories/wizard' || path === '/books/categories/wizard/') {
+    // B2b-2: the Categories Wizard (B3a) hasn't landed yet. Per the task
+    // brief's navigation fallback chain, route this path to Categories.jsx
+    // (the already-shipped B1a CRUD screen) as a stand-in so the Setup
+    // Wizard's "Save & continue to Categories →" CTA always lands
+    // somewhere real instead of hitting the generic "Coming soon" stub.
+    // Once B3a ships, replace this branch's component with the real
+    // Categories Wizard — the route itself doesn't need to change.
+    page = <Categories navigate={navigate} />;
   } else if (path === '/books/categories' || path === '/books/categories/') {
     page = <Categories navigate={navigate} />;
   } else if (path === '/books/transactions' || path === '/books/transactions/') {
