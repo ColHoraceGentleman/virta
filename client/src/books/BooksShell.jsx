@@ -29,16 +29,17 @@
 //   final POST succeeds, it calls this so the gate flips from first-run to
 //   ready immediately — the sidebar appears without a hard reload.
 //
-// /books/categories/wizard (B2b-2): routes to Categories.jsx as a stand-in
-// until B3a's real Categories Wizard ships. This is the first hop in the
-// Setup Wizard's post-completion navigation fallback chain (see
-// SetupWizard.jsx's CATEGORIES_NAV_CHAIN).
+// /books/categories/wizard (B3a): routes to CategoriesWizard.jsx, the real
+// Categories Wizard (Welcome + Steps 2-3; Steps 4-6 land in B3b). This is
+// the first hop in the Setup Wizard's post-completion navigation fallback
+// chain (see SetupWizard.jsx's CATEGORIES_NAV_CHAIN).
 //
 // Settings submenu: only rendered on /books/settings* routes. Three tabs:
 // General / Categories / Other.
 import { useState, useEffect, useCallback } from 'react';
 import Dashboard from './Dashboard.jsx';
 import SetupWizard from './SetupWizard.jsx';
+import CategoriesWizard from './CategoriesWizard.jsx';
 import Categories from './Categories.jsx';
 import Transactions from './Transactions.jsx';
 import Settings from './Settings.jsx';
@@ -257,14 +258,9 @@ export default function BooksShell() {
       />
     );
   } else if (path === '/books/categories/wizard' || path === '/books/categories/wizard/') {
-    // B2b-2: the Categories Wizard (B3a) hasn't landed yet. Per the task
-    // brief's navigation fallback chain, route this path to Categories.jsx
-    // (the already-shipped B1a CRUD screen) as a stand-in so the Setup
-    // Wizard's "Save & continue to Categories →" CTA always lands
-    // somewhere real instead of hitting the generic "Coming soon" stub.
-    // Once B3a ships, replace this branch's component with the real
-    // Categories Wizard — the route itself doesn't need to change.
-    page = <Categories navigate={navigate} />;
+    // B3a: the real Categories Wizard (Welcome + Steps 2-3; Steps 4-6 +
+    // Add Account modal land in B3b).
+    page = <CategoriesWizard navigate={navigate} />;
   } else if (path === '/books/categories' || path === '/books/categories/') {
     page = <Categories navigate={navigate} />;
   } else if (path === '/books/transactions' || path === '/books/transactions/') {
