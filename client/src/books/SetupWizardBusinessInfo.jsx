@@ -316,6 +316,12 @@ export default function SetupWizardBusinessInfo({
             updateSetup({ naics_code: code, naics_title: title });
             setShowNaicsModal(false);
           }}
+          onClear={() => {
+            // Wren B2a-wizard-B NIT F4 (landed B2b-2): Clear only clears the
+            // field — the modal stays open so the user can re-pick a code
+            // without an extra click to reopen it.
+            updateSetup({ naics_code: '', naics_title: '' });
+          }}
           onClose={() => setShowNaicsModal(false)}
         />
       )}

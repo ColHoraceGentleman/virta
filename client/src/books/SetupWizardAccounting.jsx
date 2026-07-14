@@ -122,7 +122,7 @@ export default function SetupWizardAccounting({ setup, updateSetup, setStep }) {
       <div className="mt-4 px-4 py-3 bg-slate-900/60 border border-slate-700 rounded text-slate-300 text-sm">
         Most sole proprietorships use cash accounting — recording money when
         it actually moves. You can change this later in{' '}
-        <span className="text-slate-200">Settings → Other</span>, but it
+        <span className="text-slate-200">Settings → General</span>, but it
         affects how every transaction is recorded.
       </div>
 

@@ -13,7 +13,12 @@
 //     official title. Hover state, click → code written to field, modal
 //     closes.
 //   - Selected code display at top: "Selected: 111110 Soybean Farming"
-//     with an "X" to clear (only when a code is already selected).
+//     with an "X" to clear (only when a code is already selected). Per
+//     Wren B2a-wizard-B NIT F4 (landed B2b-2): Clear only clears the
+//     selection — it does NOT close the modal, so the user can
+//     immediately re-pick a code without reopening. Callers pass an
+//     `onClear` prop for this (falls back to `onSelect('', '')` — which
+//     closes — if `onClear` isn't provided, for backward compat).
 //   - Footer: single "Cancel" button (no Save — selection closes the
 //     modal).
 //
@@ -63,7 +68,7 @@ function useDebouncedValue(value, ms) {
   return v;
 }
 
-export default function SetupWizardNaicsModal({ currentCode, onSelect, onClose }) {
+export default function SetupWizardNaicsModal({ currentCode, onSelect, onClear, onClose }) {
   const [query, setQuery] = useState('');
   const [sector, setSector] = useState('all');
   const debouncedQuery = useDebouncedValue(query, 200);
@@ -155,10 +160,10 @@ export default function SetupWizardNaicsModal({ currentCode, onSelect, onClose }
             </div>
             <button
               type="button"
-              onClick={() => onSelect('', '')}
+              onClick={() => (onClear ? onClear() : onSelect('', ''))}
               data-testid="naics-modal-clear"
               className="text-slate-500 hover:text-slate-100 text-sm"
-              title="Clear selection"
+              title="Clear selection — modal stays open so you can re-pick a code"
             >
               ✕ Clear
             </button>
