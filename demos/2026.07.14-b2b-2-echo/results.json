@@ -1,0 +1,116 @@
+[
+  {
+    "id": "VB-WIZ-SCHEMA-01",
+    "label": "schemaVersion=2 in DEFAULT_STATE",
+    "pass": true,
+    "detail": "schemaVersion=2"
+  },
+  {
+    "id": "VB-WIZ-SCHEMA-02",
+    "label": "hydrateWizardState prompts on schema mismatch",
+    "pass": true,
+    "detail": "banner=1 onStep1=1 promptText=true"
+  },
+  {
+    "id": "VB-WIZ-RESUME-04",
+    "label": "Resume/Start over prompt works (Continue from here resumes, preserves data, bumps schemaVersion)",
+    "pass": true,
+    "detail": "{\"onStep3\":1,\"name\":\"Echo Legacy\",\"schemaVersion\":2}"
+  },
+  {
+    "id": "VB-WIZ-STEP6-01",
+    "label": "Two-column review renders",
+    "pass": true,
+    "detail": "hasReview=1 grid=grid rows=13"
+  },
+  {
+    "id": "VB-WIZ-STEP6-02",
+    "label": "Every row has pencil",
+    "pass": true,
+    "detail": "missing=[]"
+  },
+  {
+    "id": "VB-WIZ-STEP6-04",
+    "label": "Skipped \"—\" editable",
+    "pass": true,
+    "detail": "text=\"—\" italic=1 editable=true"
+  },
+  {
+    "id": "VB-WIZ-STEP6-03",
+    "label": "Pencil expands inline editor with Save/Cancel",
+    "pass": true,
+    "detail": "editor=1 save=1 cancel=1"
+  },
+  {
+    "id": "VB-WIZ-STEP6-08",
+    "label": "Save re-renders row with new value",
+    "pass": true,
+    "detail": "text=\"Echo Trade Co\""
+  },
+  {
+    "id": "VB-WIZ-STEP6-09",
+    "label": "Cancel reverts to pre-edit",
+    "pass": true,
+    "detail": "text=\"Echo Trade Co\""
+  },
+  {
+    "id": "VB-WIZ-STEP6-07",
+    "label": "Error stays on Step 6 with inline error",
+    "pass": true,
+    "detail": "hasError=1 stillOnStep6=1 ctaEnabled=true statePreserved=true"
+  },
+  {
+    "id": "VB-WIZ-STEP6-05",
+    "label": "Save & continue POSTs/PATCHes business row (chain begins)",
+    "pass": true,
+    "detail": "pathname=/books/categories/wizard"
+  },
+  {
+    "id": "VB-WIZ-STEP6-06",
+    "label": "Success clears wizard state + sets setupCompletedAt",
+    "pass": true,
+    "detail": "wizardStateCleared=true"
+  },
+  {
+    "id": "VB-WIZ-PERSIST-03",
+    "label": "Wizard state clears from localStorage on success",
+    "pass": true,
+    "detail": "wizardStateCleared=true"
+  },
+  {
+    "id": "VB-WIZ-CHAIN-01",
+    "label": "Navigates to /books/categories/wizard",
+    "pass": true,
+    "detail": "pathname=/books/categories/wizard"
+  },
+  {
+    "id": "VB-WIZ-STEP6-05-SERVER (supplementary)",
+    "label": "Business row reflects Step 6 payload server-side",
+    "pass": true,
+    "detail": "proprietor_name=Echo Reviewer, business_name=Echo QA Studio"
+  },
+  {
+    "id": "VB-WIZ-GATE-01",
+    "label": "useSetupGate re-fetches (sidebar appears, no reload)",
+    "pass": true,
+    "detail": "nav=1 links=5"
+  },
+  {
+    "id": "VB-WIZ-CHAIN-02",
+    "label": "Fallback chain verified",
+    "pass": true,
+    "detail": "{\"chain\":[\"/books/categories/wizard\",\"/books/categories\",\"/books\"],\"navigated\":\"/books/categories\",\"result\":\"/books/categories\"}"
+  },
+  {
+    "id": "VB-NAICS-CLEAR-01",
+    "label": "NAICS modal Clear keeps modal open",
+    "pass": true,
+    "detail": "modalOpen=1"
+  },
+  {
+    "id": "VB-WIZ-STEP4-HELPER-01",
+    "label": "Step 4 helper text references real v2 tab",
+    "pass": true,
+    "detail": "noOtherTab=true hasGeneralTab=true"
+  }
+]
