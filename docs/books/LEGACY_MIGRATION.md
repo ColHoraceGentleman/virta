@@ -35,27 +35,36 @@ The v1 client surfaces are still useful as rollback reference (Phase A through E
 - Mac mini working tree keeps the deleted files as **untracked** working-tree entries (rollback safety net)
 - `.gitignore` rules added to prevent accidental `git add -A` staging
 
-### Phase 2 — Rename Mac mini project to "legacy" (pending Patrick)
-When Patrick says "do it":
-- Rename `/Users/colonelhoracegentleman/clawd/projects/task-manager` → `/Users/colonelhoracegentleman/clawd/projects/task-manager-legacy-v1`
-- Update any local references:
-  - launchd plists pointing at the old path (`ai.openclaw.task-manager`)
-  - Cloudflare Tunnel config (`virta` tunnel id `e9db7f70-…`)
-  - IDE bookmarks / workspace settings
-  - Any cron jobs or scripts that reference the absolute path
-- **CRITICAL:** Do NOT rename the project directory until the live site (https://virta.muckdart.com) is either:
-  - Updated to point at the new path, OR
-  - Confirmed running from a different mechanism (e.g., deployment from GitHub directly, not from the local checkout)
-- Live URL `virta.muckdart.com` is configured for the current `task-manager` path; renaming without reconfiguring breaks the live site
-- After rename: the legacy copy is preserved as historical reference; can be deleted whenever Patrick wants (not required)
+### Phase 2 — Snapshot Mac mini working tree as legacy ✅ DONE (2026-07-17 15:09 MDT)
 
-### Phase 3 — Clone back down when GitHub feels stable (pending Patrick)
+Per Patrick's 15:07 MDT call ("clone what is in task-manager/ to the new directory, that way the old stuff works until we decide to pull it down from GitHub"):
+
+- Copied `/Users/colonelhoracegentleman/clawd/projects/task-manager/.` → `/Users/colonelhoracegentleman/clawd/projects/task-manager-legacy-v1/` using `cp -a` (preserves permissions, timestamps, structure)
+- Stripped `.git/` from the legacy copy (so it's a plain directory, not a git repo — prevents accidental commits/pushes from the legacy copy)
+- Result: 574 MB legacy snapshot, ~6 seconds to copy, no git metadata to confuse
+- Live site continues to run from the unchanged `task-manager/` directory
+- **No launchd or Cloudflare Tunnel config changes** — both keep pointing at `task-manager/` (same path, same content, same live behavior)
+
+The legacy snapshot contains:
+- All 17 v1 client files at `client/src/books/_archived/`
+- The SQLite database at `data/tasks.db` (+ WAL, SHM, and 7 dated backups)
+- All historical reports, briefs, and design artifacts
+- `node_modules/` (regeneratable with `npm install` but kept for instant boot)
+- `package.json`, `.gitignore`, all source code — full working tree state as of 15:09 MDT
+
+Recovery use cases from the legacy snapshot:
+- "I broke something in `task-manager/`" → `cp -a task-manager-legacy-v1/<path> task-manager/<path>`
+- "I want to see the v1 client code" → read directly from `task-manager-legacy-v1/client/src/books/_archived/`
+- "The Mac mini died before I cloned from GitHub" → legacy is on disk, recoverable
+
+### Phase 3 — Clone fresh from GitHub when ready (pending Patrick)
 When Patrick says "GitHub feels right":
 - `git clone https://github.com/ColHoraceGentleman/virta.git /Users/colonelhoracegentleman/clawd/projects/task-manager`
-- This replaces the renamed-legacy path with a fresh v2-only working copy
-- The legacy copy stays at `task-manager-legacy-v1` as historical reference
+- This replaces `task-manager/` with a fresh v2-only clone
+- The legacy copy at `task-manager-legacy-v1/` is preserved as historical reference
 - Day-to-day work happens on this fresh clone
 - End-of-session workflow: make commits locally, `git push` to GitHub at end of working session
+- **Note:** Phase 3 doesn't require any config updates — `task-manager/` is the same path the launchd job already points at, and the fresh clone replaces the contents transparently. The live site will start serving the fresh clone on the next server restart (or on the next `launchctl` reload if needed).
 
 ### Phase 4 — Day-to-day workflow (after Phase 3)
 - Develop against `/Users/colonelhoracegentleman/clawd/projects/task-manager` (fresh clone)

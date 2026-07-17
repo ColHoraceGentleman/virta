@@ -360,7 +360,8 @@ Source: `VIRTA_BOOKS_V2.md` phase roadmap (also mirrored in Virta Tasks cards).
 | 2026-07-17 13:03 | Wren B3a-fixes re-review: SHIP | `WREN_REPORT_b3a-fixes.md` |
 | 2026-07-17 14:35 | PROJECT_BRIEF.md authored | `1a59551` |
 | 2026-07-17 14:55 | **v1 cleanup on GitHub** (17 v1 client files + 1 TASK brief deleted) | `c834067` |
-| 2026-07-17 14:59 | Legacy migration plan + protective gitignore | (this commit) |
+| 2026-07-17 14:59 | Legacy migration plan + protective gitignore | `6b959c2` |
+| 2026-07-17 15:09 | **Phase 2 complete** — `task-manager-legacy-v1/` snapshot of working tree, .git stripped | (next commit) |
 
 ---
 
