@@ -78,3 +78,21 @@ google-credentials.json
 
 # Books QA test artifacts (Playwright screenshots/logs) — never commit
 docs/books/qa/runs/
+
+# =============================================================================
+# Mac mini legacy migration (Patrick 2026-07-17 14:57 MDT)
+# =============================================================================
+# During the Books v2 GitHub-first migration, the Mac mini working tree holds
+# the v1 client surfaces as UNTRACKED files (rollback safety net for the
+# `c834067` cleanup commit). These ignore rules prevent `git add -A` from
+# accidentally staging them. Once the Mac mini working tree is renamed to
+# task-manager-legacy-v1 and replaced with a fresh clone of GitHub, remove
+# these rules and delete the legacy working tree.
+#
+# Tracking intent:
+#   client/src/books/_archived/  → DELETED on GitHub at commit c834067
+#   queued/TASK-completed-system-folder.md  → DELETED on GitHub at commit c834067
+#   Both are kept on the Mac mini as untracked files for rollback reference.
+client/src/books/_archived/
+queued/TASK-completed-system-folder.md
+# End legacy migration block — remove after fresh clone is in place.

@@ -1,18 +1,20 @@
 # Virta Books — Project Brief
 
-**Date:** 2026-07-17 14:35 MDT
+**Date:** 2026-07-17 14:59 MDT (updated; original 14:35 MDT)
 **Author:** Rusty
 **For:** Patrick (cold-read)
-**Repo:** `/Users/colonelhoracegentleman/clawd/projects/task-manager`
-**Head:** `a3627f3`
+**Repo:** `ColHoraceGentleman/virta` on GitHub (canonical); `/Users/colonelhoracegentleman/clawd/projects/task-manager` on Mac mini (legacy migration in progress)
+**Head:** `c834067`
 **Smoke test:** 255/255 passing
 **Phase status:** v2 design complete → v2 build in progress (Phase 1 + Phase 1.5 = "Categories Wizard")
+
+> **Migration in progress (2026-07-17):** Per Patrick's 14:57 MDT call, GitHub is becoming the source of truth. Mac mini working tree holds the v1 client surfaces as untracked files for rollback; will be renamed to `task-manager-legacy-v1` when Patrick gives the go. See `docs/books/LEGACY_MIGRATION.md` for the full plan.
 
 ---
 
 ## 0. One-paragraph summary
 
-Virta Books is a single-user, Schedule C-filer accounting app for Patrick's side businesses (quilting + consulting). It went through a v1 implementation (Phases A through E.2) which is **live but parked**, then a v2 redesign (2026-07-08) that produced a 26-round wireframe + spec with a new design baseline (Setup Wizard + Categories Wizard + Categories Management + Settings). We're now building v2 — Phase 1 (Chart of Accounts + Manual Entry) is shipped, Phase 1.5 (Categories Wizard) is 90% shipped (Welcome + Steps 2-3 SHIPped, Steps 4-6 queued), and the chain is paused waiting on Echo QA to certify B3a.
+Virta Books is a single-user, Schedule C-filer accounting app for Patrick's side businesses (quilting + consulting). It went through a v1 implementation (Phases A through E.2) which was **live but parked**, then a v2 redesign (2026-07-08) that produced a 27-round wireframe + spec with a new design baseline (Setup Wizard + Categories Wizard + Categories Management + Settings). We're now building v2 — Phase 1 (Chart of Accounts + Manual Entry) is shipped, Phase 1.5 (Categories Wizard) is 90% shipped (Welcome + Steps 2-3 SHIPped, Steps 4-6 queued), and the chain is paused waiting on Echo QA to certify B3a. The repo is currently being migrated to a GitHub-first workflow; the v1 client surfaces have been removed from GitHub (`c834067`) but preserved as untracked files on the Mac mini for rollback safety.
 
 ---
 
@@ -321,6 +323,8 @@ Source: `VIRTA_BOOKS_V2.md` phase roadmap (also mirrored in Virta Tasks cards).
 | Settings stub | `client/src/books/Settings.jsx` + `client/src/books/_stub-template.jsx` |
 | Manual-entry modal | `client/src/books/ManualEntryModal.jsx` |
 | Server foundations | `server/routes/books/` + `server/lib/` |
+| **Legacy migration plan** | `docs/books/LEGACY_MIGRATION.md` (this is the GitHub-first workflow plan) |
+| **Project brief** (this doc) | `docs/books/PROJECT_BRIEF.md` |
 
 ---
 
@@ -333,7 +337,31 @@ Source: `VIRTA_BOOKS_V2.md` phase roadmap (also mirrored in Virta Tasks cards).
 5. **Wren's 2026-07-06 Q1/Q2 design questions** still unanswered. v1 territory, blocks E.3 if resumed.
 6. **Gateway-restart risk.** `openclaw gateway restart` from a session hangs UI and forces onboard wizard. Only safe restart is `launchctl kickstart -k gui/$(id -u)/ai.openclaw.gateway 2>&1 &` (backgrounded). In AGENTS.md.
 7. **Pre-existing cosmetic NITs.** Sticky thead transparency (in B3a, not blocking), and other minor things captured in older review reports.
+8. **Legacy migration in progress.** GitHub is now source of truth; Mac mini working tree is in transition (untracked v1 files as rollback, will be renamed to legacy per Phase 2 of `LEGACY_MIGRATION.md`). Don't `git pull` from GitHub until Phase 3 — that would delete the untracked v1 files. The `.gitignore` rules added at `c834067` prevent accidental `git add -A` staging.
+9. **Chain paused.** Echo B3a was supposed to spawn but the spawn tool call never landed; honest gap (caught at 13:41 MDT). Next session: spawn Echo on B3a to keep the chain moving toward B3b → demo.
 
 ---
 
-*Last updated: 2026-07-17 14:35 MDT by Rusty. Next update on next chain completion or scope change.*
+## 11. Recent major events (audit log)
+
+| Date MDT | Event | Commit |
+|---|---|---|
+| 2026-07-08 17:15 | v2 wireframe baseline locked (14 rounds) | `b6b4d05` |
+| 2026-07-09 11:10+ | Rounds 15-27 wireframe + spec iteration | various |
+| 2026-07-13 | B2a-prime server foundation + v2 shell rebuild | `d44fb56` + `980a55c` |
+| 2026-07-13 | B2a-wizard-A sidebar + Dashboard first-run | `984c223` |
+| 2026-07-13 | B2a-wizard-B Steps 1-2 + NAICS modal | `5de5cef` |
+| 2026-07-14 | B2b-1 Steps 3-5 | `bfdd386` |
+| 2026-07-14 | B2b-2 Step 6 + final POST + chaining | `9c04ffc` |
+| 2026-07-14 | B3a Categories Wizard Welcome + Steps 2-3 | `d32b3eb` + `d37c180` |
+| 2026-07-14 | B3a fixes (system-account guard + §10 alignment) | `ea7836e` + `1ab7a47` |
+| 2026-07-14 | Wren B3a-fixes report (NEEDS-FIX → re-review pending) | `85b4757` |
+| 2026-07-17 12:55 | Settings.jsx Coming Soon stub | `a3627f3` |
+| 2026-07-17 13:03 | Wren B3a-fixes re-review: SHIP | `WREN_REPORT_b3a-fixes.md` |
+| 2026-07-17 14:35 | PROJECT_BRIEF.md authored | `1a59551` |
+| 2026-07-17 14:55 | **v1 cleanup on GitHub** (17 v1 client files + 1 TASK brief deleted) | `c834067` |
+| 2026-07-17 14:59 | Legacy migration plan + protective gitignore | (this commit) |
+
+---
+
+*Last updated: 2026-07-17 14:59 MDT by Rusty. Next update when next chain step completes or scope changes.*
